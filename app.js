@@ -568,7 +568,7 @@ function renderDetail() {
   const facts = [];
   facts.push(['Aaroh', formatPhrase(r.aaroh)], ['Avaroh', formatPhrase(r.avaroh)]);
   if (r.pakad) facts.push(['Pakad', formatPhrase(r.pakad)]);
-  if (r.phrases && r.phrases.length) facts.push(['Phrases', r.phrases.map(p => `<div>${esc(formatPhrase(p))}</div>`).join(''), true]);
+  if (r.phrases && r.phrases.length) facts.push(['Key phrases', r.phrases.map(p => `<div>${esc(formatPhrase(p))}</div>`).join(''), true]);
   const vs = [];
   if (r.vadi) vs.push(`${r.vadi} <span class="muted small">vadi</span>`);
   if (r.samvadi) vs.push(`${r.samvadi} <span class="muted small">samvadi</span>`);

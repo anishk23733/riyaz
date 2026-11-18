@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v1';
+const CACHE = 'riyaz-v2';
 
 const ASSETS = [
   './',
@@ -11,6 +11,7 @@ const ASSETS = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  'icons/favicon-32.png',
 ];
 
 self.addEventListener('install', e => {
