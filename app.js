@@ -1245,8 +1245,9 @@ const Tabla = {
     // Dha / Dhin: use a real two-handed recording when the dayan needs only a small retune,
     // otherwise layer a retuned dayan stroke over an untouched bayan stroke.
     const combo = st.b === 'ge' ? (st.d === 'na' ? 'dha' : st.d === 'tin' ? 'dhin' : null) : null;
-    if (combo && Math.random() < 0.2) {
-      const s = first ? this.pick(combo, x => Math.abs(dayanShift(x.hz)) <= 2.5) : null; // only on strong beats
+    if (combo && Math.random() < (combo === 'dhin' ? 0.35 : 0.2)) {
+      // real two-handed recordings: on strong beats, and for Dhin anywhere (its resonance is the point)
+      const s = first || combo === 'dhin' ? this.pick(combo, x => Math.abs(dayanShift(x.hz)) <= 2.5) : null;
       if (s) { this.play(s, t, vel); return; }
     }
     if (st.d) { const s = this.pick(st.d); if (s) this.play(s, t, vel); }
@@ -1258,10 +1259,12 @@ const Tabla = {
       // rising) Ge; the longest, steadiest Ge recordings only on sam.
       const want = first ? ['fall', 'flat'] : st.d === 'tin' ? ['fall'] : beat < 0.3 ? ['short', 'fall'] : ['fall'];
       const s = this.pick(st.b, x => st.b !== 'ge' || want.includes(x.ge));
-      const level = first ? 1 : 0.62;
+      // Dhin's open ringing Ge is what makes it Dhin (vs Tin): keep it clear and undamped.
+      const isDhin = st.d === 'tin';
+      const level = first ? 1 : isDhin ? 0.85 : 0.62;
       // bayan lands a hair before/after the dayan, like real hands
       // damp inner-beat Ge — but let it ring on into a rest; ring longer at slow tempo
-      const damp = !first && !ringOn && s.cls === 'ge' ? Math.max(0.3, beat * 0.45) : 0;
+      const damp = !first && !ringOn && !isDhin && s.cls === 'ge' ? Math.max(0.3, beat * 0.45) : 0;
       if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * level * (st.accent ? 1.15 : 1), damp);
     }
   },
