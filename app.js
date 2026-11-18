@@ -52,9 +52,12 @@ function ragaInfo(r) {
 // =====================================================================
 // Settings (remembered)
 // =====================================================================
-const DEFAULTS = { saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', first: 'auto', extra: 'off', bpm: 60, balance: 60 };
+const DEFAULTS = { saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', first: null, extra: null, bpm: 60, balance: 60 };
 const S = Object.assign({}, DEFAULTS, (() => { try { return JSON.parse(localStorage.getItem('riyaz') || '{}'); } catch { return {}; } })());
 if (!ALL_RAGAS.has(S.raga)) S.raga = DEFAULTS.raga;
+if (S.first === 'auto') S.first = null;
+if (S.extra === 'off' && !localStorage.getItem('riyaz-v2')) S.extra = null;
+try { localStorage.setItem('riyaz-v2', '1'); } catch {}
 const save = () => { try { localStorage.setItem('riyaz', JSON.stringify(S)); } catch {} };
 
 const currentRaga = () => ALL_RAGAS.get(S.raga);
@@ -118,8 +121,15 @@ function applyBalance() {
 // One sustained harmonium voice whose pitch can glide (meend).
 // Like a real 2-reed harmonium: the main reed, a second reed tuned a few cents sharp
 // (the gentle beating you hear on a real one) and a lower-octave "bass" reed.
+let lastNoteOn = -1e9;
+const VOICE_LEVEL = 0.085;
 function harmoniumVoice(midi) {
   const c = audio(), t = c.currentTime, f = mtof(midi);
+  // In fast playing (taans) notes must speak instantly and in tune; the gentle swell and
+  // slightly-flat start of a real reed only suit the first note of a phrase.
+  const nowMs = performance.now();
+  const quick = nowMs - lastNoteOn < 300 || (typeof touches !== 'undefined' && touches.size > 1);
+  lastNoteOn = nowMs;
   const reeds = [
     { ratio: 1, detune: 0, level: 1 },
     { ratio: 1, detune: 4, level: 0.55 },
@@ -127,15 +137,19 @@ function harmoniumVoice(midi) {
   ];
   const g = c.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.setTargetAtTime(0.085, t, 0.028); // reeds take a moment to speak
+  g.gain.setTargetAtTime(VOICE_LEVEL, t, quick ? 0.005 : 0.016);
   g.connect(reedBus);
   const oscs = reeds.map(r => {
     const o = c.createOscillator(), lv = c.createGain();
     o.setPeriodicWave(reedWave);
     o.detune.value = r.detune;
-    // reeds start slightly flat and settle onto pitch
-    o.frequency.setValueAtTime(f * r.ratio * 0.993, t);
-    o.frequency.setTargetAtTime(f * r.ratio, t, 0.035);
+    if (quick) {
+      o.frequency.setValueAtTime(f * r.ratio, t);
+    } else {
+      // a phrase's first note: reed starts a hair flat and settles onto pitch
+      o.frequency.setValueAtTime(f * r.ratio * 0.996, t);
+      o.frequency.setTargetAtTime(f * r.ratio, t, 0.02);
+    }
     lv.gain.value = r.level;
     o.connect(lv).connect(g);
     o.start(t);
@@ -155,7 +169,19 @@ function harmoniumVoice(midi) {
     setPitch(m, tc) {
       if (stopped) return;
       const tt = c.currentTime, ff = mtof(m);
-      for (const { o, ratio } of oscs) o.frequency.setTargetAtTime(ff * ratio, tt, tc);
+      for (const { o, ratio } of oscs) {
+        o.frequency.cancelScheduledValues(tt);
+        o.frequency.setTargetAtTime(ff * ratio, tt, tc);
+      }
+    },
+    // A tiny dip in volume, so consecutive notes in a fast run are heard as separate notes.
+    articulate() {
+      if (stopped) return;
+      const tt = c.currentTime;
+      g.gain.cancelScheduledValues(tt);
+      g.gain.setValueAtTime(g.gain.value, tt);
+      g.gain.setTargetAtTime(VOICE_LEVEL * 0.55, tt, 0.003);
+      g.gain.setTargetAtTime(VOICE_LEVEL, tt + 0.011, 0.006);
     },
     stop(fast) {
       if (stopped) return;
@@ -163,7 +189,7 @@ function harmoniumVoice(midi) {
       const tt = c.currentTime;
       g.gain.cancelScheduledValues(tt);
       g.gain.setValueAtTime(g.gain.value, tt);
-      g.gain.setTargetAtTime(0, tt, fast ? 0.012 : 0.045);
+      g.gain.setTargetAtTime(0, tt, fast ? 0.01 : 0.028);
       for (const { o } of oscs) o.stop(tt + 0.5);
       nz.stop(tt + 0.5);
     },
@@ -211,23 +237,27 @@ function synthString(sr, f, dur) {
   return out;
 }
 
+// A raga's usual tanpura tuning: first string from the data (or P, else m, else N),
+// extra string only where the raga data names one.
+function ragaTanpura(r) {
+  const all = ragaInfo(r).all;
+  const first = r.tanpura || (all.includes(7) ? 'P' : all.includes(5) ? 'm' : 'N');
+  return { first, extra: r.tanpuraExtra || 'off' };
+}
+const STRING_ORDER = ['P', 'm', 'M', 'd', 'D', 'N', 'G'];
 const STRING_SEMI = { P: -5, m: -7, M: -6, N: -1, d: -4, D: -3, G: -8 }; // relative to madhya Sa, in mandra
 
 const Tanpura = {
   playing: false, timer: null, nextTime: 0, idx: 0, gen: 0,
   cache: new Map(), last: new Map(),
 
-  firstString() {
-    if (S.first !== 'auto') return S.first;
-    const r = currentRaga();
-    if (r.tanpura) return r.tanpura;
-    const all = ragaInfo(r).all;
-    return all.includes(7) ? 'P' : all.includes(5) ? 'm' : 'N';
-  },
+  firstString() { return S.first || ragaTanpura(currentRaga()).first; },
+  extraString() { return S.extra || ragaTanpura(currentRaga()).extra; },
   strings() {
     const first = this.firstString();
     const list = [{ label: swaraText(first, -1), semi: STRING_SEMI[first] }];
-    if (S.extra !== 'off' && S.extra !== first) list.push({ label: swaraText(S.extra, -1), semi: STRING_SEMI[S.extra] });
+    const extra = this.extraString();
+    if (extra !== 'off' && extra !== first) list.push({ label: swaraText(extra, -1), semi: STRING_SEMI[extra] });
     list.push({ label: 'S', semi: 0, sa: true }, { label: 'S', semi: 0, sa: true, rate: 1.0009 }, { label: swaraText('S', -1), semi: -12, sa: true });
     return list;
   },
@@ -311,45 +341,63 @@ const Tanpura = {
 const stage = $('stage'), track = $('track'), minimap = $('minimap'), mmWindow = $('mmWindow');
 let pads = [], step = 90, scrollX = 0, info = null;
 
+// Swaras that share a name (r/R, g/G, m/M, d/D, n/N). If a raga uses both forms, they share
+// one split pad: the higher form (R G M D N) on top, the lower form (r g m d n) below.
+const SWARA_GROUPS = [[0], [1, 2], [3, 4], [5, 6], [7], [8, 9], [10, 11]];
+const heldCount = new Map(); // element -> number of fingers on it
+
+function swaraTag(r, off) {
+  if (r.isThaat) return '';
+  const letter = LETTERS[off];
+  if (r.vadi === letter) return 'vadi';
+  if (r.samvadi === letter) return 'samvadi';
+  if (!info.upSet.has(off)) return 'avaroh only';
+  if (!info.dnSet.has(off)) return 'aaroh only';
+  return '';
+}
+
 function buildPads() {
   const r = currentRaga();
   info = ragaInfo(r);
+  const cols = SWARA_GROUPS.map(g => g.filter(o => info.all.includes(o))).filter(g => g.length);
+  info.colsPerOctave = cols.length;
   pads = [];
-  for (let oct = -1; oct <= 1; oct++) for (const off of info.all) pads.push({ off, oct });
-  pads.push({ off: 0, oct: 2 });
+  for (let oct = -1; oct <= 1; oct++) for (const offs of cols) pads.push({ oct, offs });
+  pads.push({ oct: 2, offs: [0] });
 
   track.innerHTML = '';
+  heldCount.clear();
   for (const p of pads) {
-    const letter = LETTERS[p.off];
-    p.semi = p.oct * 12 + p.off;
-    p.held = 0;
-    let tag = '';
-    if (!r.isThaat) {
-      if (r.vadi === letter) tag = 'vadi';
-      else if (r.samvadi === letter) tag = 'samvadi';
-      else if (!info.upSet.has(p.off)) tag = 'avaroh only';
-      else if (!info.dnSet.has(p.off)) tag = 'aaroh only';
-    }
+    p.split = p.offs.length === 2;
+    p.lo = p.offs[0];
+    p.hi = p.offs[p.offs.length - 1];
     const el = document.createElement('div');
-    // Zig-zag: S up · r/R g/G down · m/M P up · d/D n/N down
-    const up = [0, 5, 6, 7].includes(p.off);
-    el.className = 'pad' + (up ? '' : ' down') + (p.off === 0 ? ' sa' : '');
-    el.innerHTML = `<span class="sw">${swaraText(letter, p.oct)}</span><span class="tag">${tag}</span>`;
+    if (p.split) {
+      el.className = 'pad split';
+      el.innerHTML =
+        `<div class="half hi"><span class="sw">${swaraText(LETTERS[p.hi], p.oct)}</span><span class="tag">${swaraTag(r, p.hi)}</span></div>` +
+        `<div class="half lo"><span class="sw">${swaraText(LETTERS[p.lo], p.oct)}</span><span class="tag">${swaraTag(r, p.lo)}</span></div>`;
+      p.hiEl = el.children[0];
+      p.loEl = el.children[1];
+    } else {
+      // Zig-zag: S up · R G down · M P up · D N down
+      const up = [0, 5, 6, 7].includes(p.lo);
+      el.className = 'pad' + (up ? '' : ' down') + (p.lo === 0 ? ' sa' : '');
+      el.innerHTML = `<span class="sw">${swaraText(LETTERS[p.lo], p.oct)}</span><span class="tag">${swaraTag(r, p.lo)}</span>`;
+    }
     track.appendChild(el);
     p.el = el;
   }
 
-  // minimap
+  // minimap: one tick per pad column
   minimap.querySelectorAll('.tick').forEach(t => t.remove());
   for (const p of pads) {
     const t = document.createElement('span');
-    t.className = 'tick' + (p.off === 0 ? ' sa' : '');
+    t.className = 'tick' + (p.lo === 0 ? ' sa' : '');
     minimap.insertBefore(t, mmWindow);
     p.tick = t;
   }
-  const n = info.all.length;
-  const labels = $('mmLabels').children;
-  for (const l of labels) l.style.width = (n * 12) + 'px';
+  for (const l of $('mmLabels').children) l.style.width = (cols.length * 12) + 'px';
   $('mmLabels').style.paddingLeft = '3px';
 
   layout();
@@ -359,7 +407,7 @@ function buildPads() {
 
 function layout() {
   const W = stage.clientWidth;
-  step = Math.max(58, W / (info.all.length + 2));
+  step = Math.max(58, W / (info.colsPerOctave + 2));
   pads.forEach((p, i) => { p.el.style.left = (i * step + 3) + 'px'; p.el.style.width = (step - 6) + 'px'; });
   track.style.width = pads.length * step + 'px';
   clampScroll();
@@ -368,7 +416,7 @@ function layout() {
 const maxScroll = () => Math.max(0, pads.length * step - stage.clientWidth);
 const clampScroll = () => { scrollX = clamp(scrollX, 0, maxScroll()); };
 function resetScroll() {
-  const i = pads.findIndex(p => p.oct === 0 && p.off === 0);
+  const i = pads.findIndex(p => p.oct === 0 && p.lo === 0);
   scrollX = i * step - 0.5 * step;
   clampScroll();
   applyScroll(false);
@@ -389,40 +437,62 @@ function slideBy(nPads) {
   applyScroll(true);
 }
 
-// ---------- which pad is under the finger ----------
-// The note you hear is always the pad under your finger. A small dead zone at pad edges
-// (hysteresis) stops it flickering between two notes when you rest on a boundary.
-const padMidi = i => saMidi() + pads[i].semi;
-const EDGE = 0.12; // fraction of a pad you must cross past the edge before switching
+// ---------- which note a pad plays ----------
+const offMidi = (i, off) => saMidi() + pads[i].oct * 12 + off;
+const EDGE = 0.12; // fraction of a pad you must cross past the edge before switching (no flicker)
 function padAt(p, current) {
-  const N = pads.length;
   if (current >= 0 && p >= current - EDGE && p < current + 1 + EDGE) return current;
-  return clamp(Math.floor(p), 0, N - 1);
+  return clamp(Math.floor(p), 0, pads.length - 1);
 }
+
+// Smart choice for split pads (e.g. n/N in Khamaj):
+//  1. If you deliberately touched or moved to a half of this pad, that half wins.
+//  2. Otherwise, when sliding, use the form the raga uses in that direction
+//     (aaroh going up, avaroh coming down) — e.g. Khamaj: N going up, n coming down.
+//  3. Otherwise, whichever half your finger is on.
+function variantOf(i, tch) {
+  const p = pads[i];
+  if (!p.split) return p.lo;
+  if (tch.choice != null && tch.choiceIdx === i) return tch.choice;
+  const dirSet = tch.dir > 0 ? info.upSet : tch.dir < 0 ? info.dnSet : null;
+  if (dirSet) {
+    const c = p.offs.filter(o => dirSet.has(o));
+    if (c.length === 1) return c[0];
+  }
+  return tch.yHalf === 'hi' ? p.hi : p.lo;
+}
+const elFor = (i, off) => { const p = pads[i]; return !p.split ? p.el : off === p.hi ? p.hiEl : p.loEl; };
 
 // ---------- Meend ----------
 // While the finger moves, pitch follows it continuously along the raga's notes. Each pad's
 // middle holds the exact note and the pitch curves smoothly (slow–fast–slow) between pads,
 // so P→R in Yaman is one unbroken glide that brushes M and G on the way. The moment the
 // finger pauses, the pitch eases onto the nearest raga note, so it never rests off-raga.
-const HOLD = 0.2;          // part of each pad (either side of its middle) that holds the exact note
+const HOLD = 0.2;           // part of each pad (either side of its middle) that holds the exact note
 const MEEND_SMOOTH = 0.045; // smoothing (s) — removes finger jitter so the curve sounds sung
 const SETTLE_MS = 70;       // pause this long and the pitch settles onto the nearest note
-function meendPitch(p) {
+const TAAN_SPEED = 5;       // pads per second; faster than this = taan (crisp notes, no glide)
+function meendPitch(p, tch) {
   const N = pads.length, q = p - 0.5, i = Math.floor(q), t = q - i;
-  if (i < 0) return padMidi(0);
-  if (i >= N - 1) return padMidi(N - 1);
+  if (i < 0) return offMidi(0, variantOf(0, tch));
+  if (i >= N - 1) return offMidi(N - 1, variantOf(N - 1, tch));
   let s = t <= HOLD ? 0 : t >= 1 - HOLD ? 1 : (t - HOLD) / (1 - 2 * HOLD);
   s = s * s * (3 - 2 * s);
-  return padMidi(i) + (padMidi(i + 1) - padMidi(i)) * s;
+  const a = offMidi(i, variantOf(i, tch)), b = offMidi(i + 1, variantOf(i + 1, tch));
+  return a + (b - a) * s;
 }
 const nearestPad = p => clamp(Math.round(p - 0.5), 0, pads.length - 1);
 
-function setHeld(idx, delta) {
-  const p = pads[idx];
-  if (!p) return;
-  p.held = Math.max(0, p.held + delta);
-  p.el.classList.toggle('on', p.held > 0);
+// Light up exactly the pad (or half-pad) a finger is sounding.
+function showHeld(tch, el) {
+  if (tch.heldEl === el) return;
+  if (tch.heldEl) {
+    const n = (heldCount.get(tch.heldEl) || 1) - 1;
+    heldCount.set(tch.heldEl, n);
+    if (n <= 0) tch.heldEl.classList.remove('on');
+  }
+  tch.heldEl = el;
+  if (el) { heldCount.set(el, (heldCount.get(el) || 0) + 1); el.classList.add('on'); }
 }
 
 // ---------- gestures ----------
@@ -432,6 +502,16 @@ const portraitMQ = matchMedia('(orientation: portrait)');
 const ax = e => portraitMQ.matches ? e.clientY : e.clientX;      // along the pads
 const ay = e => portraitMQ.matches ? -e.clientX : e.clientY;     // across the pads
 const startOf = el => { const r = el.getBoundingClientRect(); return portraitMQ.matches ? r.top : r.left; };
+// 0 = top of the pads, 1 = bottom (in app space)
+function yFrac(e, rect) {
+  return portraitMQ.matches ? (rect.right - e.clientX) / rect.width : (e.clientY - rect.top) / rect.height;
+}
+function updateYHalf(tch, e) {
+  const f = yFrac(e, tch.rect);
+  if (f < 0.46) tch.yHalf = 'hi';
+  else if (f > 0.54) tch.yHalf = 'lo';
+}
+
 // One finger always plays (and slides = meend). Two fingers that land together and
 // move sideways together scroll the strip instead.
 const touches = new Map();
@@ -442,15 +522,23 @@ stage.addEventListener('pointerdown', e => {
   unlock();
   stageLeft = startOf(stage);
   const p = (ax(e) - stageLeft + scrollX) / step;
-  const tch = { id: e.pointerId, x0: ax(e), y0: ay(e), x: ax(e), y: ay(e), t0: performance.now(), voice: null, idx: -1 };
+  const tch = {
+    id: e.pointerId, x0: ax(e), y0: ay(e), x: ax(e), y: ay(e), t0: performance.now(),
+    voice: null, idx: -1, rect: stage.getBoundingClientRect(), yHalf: 'hi', dir: 0, lastRaw: p,
+    choice: null, choiceIdx: -1, heldEl: null,
+  };
+  updateYHalf(tch, e);
   touches.set(e.pointerId, tch);
   if (scrolling) { scrolling.ids.add(e.pointerId); return; }
-  const padIdx = padAt(p, -1);
-  tch.idx = padIdx;
+  const idx = padAt(p, -1);
+  tch.idx = idx;
   tch.p0 = p;
-  tch.shift = (padIdx + 0.5) - p;
-  tch.voice = harmoniumVoice(padMidi(padIdx));
-  setHeld(padIdx, 1);
+  tch.shift = (idx + 0.5) - p;
+  if (pads[idx].split) { tch.choice = tch.yHalf === 'hi' ? pads[idx].hi : pads[idx].lo; tch.choiceIdx = idx; }
+  const off = variantOf(idx, tch);
+  tch.off = off;
+  tch.voice = harmoniumVoice(offMidi(idx, off));
+  showHeld(tch, elFor(idx, off));
 });
 
 window.addEventListener('pointermove', e => {
@@ -474,34 +562,72 @@ window.addEventListener('pointermove', e => {
     const together = Math.abs(a.t0 - b.t0) < 180;
     const horizontal = Math.abs(dxa) > Math.abs(a.y - a.y0) && Math.abs(dxb) > Math.abs(b.y - b.y0);
     if (together && horizontal && Math.sign(dxa) === Math.sign(dxb) && Math.abs(dxa) > 22 && Math.abs(dxb) > 22) {
-      for (const t of [a, b]) { if (t.voice) t.voice.stop(true); if (t.idx >= 0) setHeld(t.idx, -1); t.voice = null; t.idx = -1; }
-      const avg0 = (a.x0 + b.x0) / 2;
-      scrolling = { ids: new Set([a.id, b.id]), startScroll: scrollX, startAvg: avg0 };
+      for (const t of [a, b]) { if (t.voice) t.voice.stop(true); showHeld(t, null); t.voice = null; t.idx = -1; }
+      scrolling = { ids: new Set([a.id, b.id]), startScroll: scrollX, startAvg: (a.x0 + b.x0) / 2 };
       return;
     }
   }
 
   if (!tch.voice) return;
   const raw = (ax(e) - stageLeft + scrollX) / step;
+  if (Math.abs(raw - tch.lastRaw) > 0.03) { tch.dir = Math.sign(raw - tch.lastRaw); tch.lastRaw = raw; }
+  const prevHalf = tch.yHalf;
+  updateYHalf(tch, e);
+
+  // Moving up/down within a split pad is a deliberate choice of form (and a meend between them).
+  const curIdx = S.slide === 'steps' ? padAt(raw, tch.idx) : nearestPad(raw + tch.shift * Math.max(0, 1 - Math.abs(raw - tch.p0)));
+  if (curIdx !== tch.choiceIdx) { tch.choice = null; tch.choiceIdx = -1; }
+  if (pads[curIdx].split && tch.yHalf !== prevHalf) {
+    tch.choice = tch.yHalf === 'hi' ? pads[curIdx].hi : pads[curIdx].lo;
+    tch.choiceIdx = curIdx;
+  }
 
   if (S.slide === 'steps') {
-    const idx = padAt(raw, tch.idx);
-    if (idx === tch.idx) return;
-    tch.voice.setPitch(padMidi(idx), 0.003);
-    setHeld(tch.idx, -1); setHeld(idx, 1); tch.idx = idx;
+    const off = variantOf(curIdx, tch);
+    if (curIdx === tch.idx && off === tch.off) return;
+    tch.voice.setPitch(offMidi(curIdx, off), 0.003);
+    tch.idx = curIdx; tch.off = off;
+    showHeld(tch, elFor(curIdx, off));
     return;
   }
 
   // Meend. Where you first touched always sounds that pad's exact note; that offset fades
   // out over the first pad of movement, so the pitch stays in line with your finger.
   const moved = Math.abs(raw - tch.p0);
-  if (moved < 0.12) return; // tiny wobble on the first touch: stay on the note
+  if (moved < 0.12) {
+    // still on the first pad: only a vertical change of form (split pad) changes the note
+    const off = variantOf(tch.idx, tch);
+    if (off !== tch.off) {
+      tch.off = off;
+      tch.voice.setPitch(offMidi(tch.idx, off), MEEND_SMOOTH * 1.5);
+      showHeld(tch, elFor(tch.idx, off));
+    }
+    return;
+  }
   const p = raw + tch.shift * Math.max(0, 1 - moved);
-  tch.voice.setPitch(meendPitch(p), MEEND_SMOOTH);
-  const idx = nearestPad(p);
-  if (idx !== tch.idx) { setHeld(tch.idx, -1); setHeld(idx, 1); tch.idx = idx; }
+  // How fast is the finger moving (pads per second)? Slow = meend, fast = crisp taan.
+  const now = performance.now();
+  if (tch.lastT) {
+    const inst = Math.abs(p - tch.lastP) / Math.max(1, now - tch.lastT) * 1000;
+    tch.speed = 0.6 * (tch.speed || 0) + 0.4 * inst;
+  }
+  tch.lastT = now; tch.lastP = p;
+  const idx = nearestPad(p), off = variantOf(idx, tch);
+  const changed = idx !== tch.idx || off !== tch.off;
+  if (tch.speed > TAAN_SPEED) {
+    // Taan: jump almost straight to each exact note, with a tiny articulation between notes.
+    if (changed) { tch.voice.setPitch(offMidi(idx, off), 0.006); tch.voice.articulate(); }
+  } else {
+    tch.voice.setPitch(meendPitch(p, tch), MEEND_SMOOTH);
+  }
+  tch.idx = idx; tch.off = off;
+  showHeld(tch, elFor(idx, off));
   clearTimeout(tch.settle);
-  tch.settle = setTimeout(() => { if (tch.voice) tch.voice.setPitch(padMidi(nearestPad(p)), 0.05); }, SETTLE_MS);
+  tch.settle = setTimeout(() => {
+    if (!tch.voice) return;
+    const i2 = nearestPad(p), o2 = variantOf(i2, tch);
+    tch.voice.setPitch(offMidi(i2, o2), 0.05);
+  }, SETTLE_MS);
 });
 
 function endTouch(e) {
@@ -510,7 +636,7 @@ function endTouch(e) {
   touches.delete(e.pointerId);
   clearTimeout(tch.settle);
   if (tch.voice) tch.voice.stop(false);
-  if (tch.idx >= 0) setHeld(tch.idx, -1);
+  showHeld(tch, null);
   if (scrolling) {
     scrolling.ids.delete(e.pointerId);
     if (scrolling.ids.size === 0) { scrolling = null; slideBy(0); }
@@ -520,10 +646,11 @@ window.addEventListener('pointerup', endTouch);
 window.addEventListener('pointercancel', endTouch);
 
 function releaseAll() {
-  for (const t of touches.values()) { if (t.voice) t.voice.stop(true); }
+  for (const t of touches.values()) { clearTimeout(t.settle); if (t.voice) t.voice.stop(true); }
   touches.clear();
   scrolling = null;
-  pads.forEach(p => { p.held = 0; p.el.classList.remove('on'); });
+  heldCount.clear();
+  track.querySelectorAll('.on').forEach(el => el.classList.remove('on'));
 }
 
 $('navLeft').onclick = () => slideBy(-4);
@@ -671,7 +798,9 @@ function renderDetail() {
     </div>`;
   $('hearBtn').onclick = () => togglePreview(r);
   $('useBtn').onclick = () => {
-    S.raga = r.name; save();
+    S.raga = r.name;
+    S.first = null; S.extra = null; // use this raga's tuning until you change it
+    save();
     buildPads();
     Tanpura.retune();
     closeSheet('browser');
@@ -724,8 +853,18 @@ document.querySelectorAll('[data-cents]').forEach(b => {
   b.onclick = () => { S.cents = clamp(S.cents + Number(b.dataset.cents), -50, 50); changedTuning(); };
 });
 document.querySelectorAll('[data-slide]').forEach(b => { b.onclick = () => { S.slide = b.dataset.slide; save(); renderSettings(); }; });
-document.querySelectorAll('[data-first]').forEach(b => { b.onclick = () => { S.first = b.dataset.first; save(); renderSettings(); Tanpura.retune(); }; });
-document.querySelectorAll('[data-extra]').forEach(b => { b.onclick = () => { S.extra = b.dataset.extra; save(); renderSettings(); Tanpura.retune(); }; });
+// Tanpura string chips: the raga's usual choice is marked with a dot.
+function renderStringChips() {
+  const def = ragaTanpura(currentRaga());
+  const firstOpts = STRING_ORDER.filter(x => ['P', 'm', 'N', def.first].includes(x));
+  const extraOpts = ['off', ...STRING_ORDER.filter(x => ['N', 'm', 'G', def.extra].includes(x))];
+  const chip = (kind, val, cur, isDef) =>
+    `<button data-${kind}="${val}" class="${val === cur ? 'sel' : ''}${isDef ? ' def' : ''}">${val === 'off' ? 'Off' : swaraText(val, -1)}</button>`;
+  $('firstChips').innerHTML = firstOpts.map(v => chip('first', v, Tanpura.firstString(), v === def.first)).join('');
+  $('extraChips').innerHTML = extraOpts.map(v => chip('extra', v, Tanpura.extraString(), v === def.extra)).join('');
+  $('firstChips').querySelectorAll('button').forEach(b => { b.onclick = () => { S.first = b.dataset.first === def.first ? null : b.dataset.first; save(); renderSettings(); Tanpura.retune(); }; });
+  $('extraChips').querySelectorAll('button').forEach(b => { b.onclick = () => { S.extra = b.dataset.extra === def.extra ? null : b.dataset.extra; save(); renderSettings(); Tanpura.retune(); }; });
+}
 document.querySelectorAll('[data-bpm]').forEach(b => {
   b.onclick = () => { S.bpm = clamp(S.bpm + Number(b.dataset.bpm), 30, 140); save(); renderSettings(); };
 });
@@ -743,11 +882,7 @@ function renderSettings() {
   $('saHz').textContent = mtof(saMidi()).toFixed(1) + ' Hz';
   $('centsVal').textContent = (S.cents > 0 ? '+' : '') + S.cents;
   document.querySelectorAll('[data-slide]').forEach(b => b.classList.toggle('sel', b.dataset.slide === S.slide));
-  document.querySelectorAll('[data-first]').forEach(b => {
-    b.classList.toggle('sel', b.dataset.first === S.first);
-    if (b.dataset.first === 'auto') b.textContent = 'Auto (' + Tanpura.firstString() + ')';
-  });
-  document.querySelectorAll('[data-extra]').forEach(b => b.classList.toggle('sel', b.dataset.extra === S.extra));
+  renderStringChips();
   $('bpmVal').textContent = S.bpm;
   $('balance').value = S.balance;
   renderPluckChips();
@@ -762,8 +897,6 @@ function renderPluckChips() {
     else chips.push({ label: s.label, text: s.label, sa: s.sa, idx: [i] });
   });
   $('pluckChips').innerHTML = chips.map(c => `<span class="${c.sa ? 'sa' : ''}" data-idx="${c.idx.join(',')}">${c.text}</span>`).join('');
-  const autoBtn = document.querySelector('[data-first="auto"]');
-  if (autoBtn) autoBtn.textContent = 'Auto (' + Tanpura.firstString() + ')';
 }
 
 // =====================================================================

@@ -167,6 +167,33 @@ button { cursor: pointer; touch-action: manipulation; }
 .pad .tag:empty { visibility: hidden; }
 .pad.sa { background: var(--sa-bg); border: 1.5px solid var(--accent); }
 .pad.on { background: var(--pressed); border-color: var(--pressed); color: var(--pressed-ink); }
+
+/* Split pad: both forms of a swara in one column — higher form on top, lower below */
+.pad.split {
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 6px;
+  justify-content: stretch;
+}
+.pad.split .half {
+  flex: 1;
+  width: 100%;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding-top: 18px;
+  transition: background .06s;
+}
+.pad.split .half.lo { flex-direction: column-reverse; padding: 0 0 18px; }
+.pad.split .half .sw { font-size: 30px; }
+.pad.split .half.on { background: var(--pressed); border-color: var(--pressed); color: var(--pressed-ink); }
+.pad.split .half.on .tag { color: #5a4a30; background: rgba(0, 0, 0, .07); }
 .pad.on .tag { color: #5a4a30; background: rgba(0, 0, 0, .07); }
 
 /* ---------- navigation ---------- */
@@ -418,7 +445,17 @@ button { cursor: pointer; touch-action: manipulation; }
   white-space: nowrap;
   padding: 0 6px;
 }
-.chips button:first-child { flex: 1.4; }
+.chips button { position: relative; }
+.chips button.def::after { /* the raga's usual tuning */
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+}
 .chips button.sel { background: #34343a; border-color: #34343a; font-weight: 600; }
 
 .tanpura-head { display: flex; align-items: center; gap: 12px; }
