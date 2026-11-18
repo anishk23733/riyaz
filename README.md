@@ -7,7 +7,7 @@ Open it at **https://anishk23733.github.io/riyaz/** — on iPhone, open in Safar
 ## What's in it
 
 - **Pads** show only the chosen raga's swaras, from mandra to taar (plus an octave). Ragas that use both forms of a swara (m/M, n/N…) get a split pad: higher form on top.
-- **Meend**: slide between pads; the pitch glides along the raga's notes and locks exactly onto a note when you slow down. Holding a note and pressing the pad next to it pulls the held note there (farther pads play their own note). Quick taps are kept audible for fast taans.
+- **Meend**: slide between pads; the pitch glides along the raga's notes and locks exactly onto a note when you slow down. Holding a note and pressing any other pad pulls the held note there and back (Settings can make the second finger play its own note instead). Quick taps are kept audible for fast taans.
 - **Tanpura**: real recorded string plucks, pitch-shifted exactly to your Sa, strings set from the raga (changeable). A generated tanpura stands in while the recordings load.
 - **Raga browser**: ragas grouped by thaat, with aaroh, avaroh, pakad, key phrases, rules, vadi/samvadi. Data lives in `ragas.js` — edit freely. Entries marked `check: true` were written from memory and are worth verifying.
 
