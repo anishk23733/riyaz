@@ -49,16 +49,37 @@
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 9h2M6 5v8M9 3v12M12 6v6M15 8v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         <span>Tanpura</span>
       </button>
+      <div class="topbar-right">
+      <button id="phrasesBtn" class="icon-btn" aria-label="Aaroh, avaroh, pakad and phrases">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 13.5V3.5l8-1.8v10" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="5" cy="13.5" r="2" fill="currentColor"/><circle cx="13" cy="11.7" r="2" fill="currentColor"/></svg>
+      </button>
       <button id="settingsBtn" class="icon-btn" aria-label="Settings">
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M9 1.5v2.2M9 14.3v2.2M1.5 9h2.2M14.3 9h2.2M3.7 3.7l1.5 1.5M12.8 12.8l1.5 1.5M3.7 14.3l1.5-1.5M12.8 5.2l1.5-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
+      </div>
     </header>
 
     <main id="stage" aria-label="Swara pads">
       <div id="track"></div>
     </main>
 
+    <div id="phrasePanel" class="phrase-panel" hidden>
+      <div class="phrase-head">
+        <span id="phraseTitle" class="strong"></span>
+        <span class="grow"></span>
+        <div class="seg small-seg">
+          <button data-pspeed="slow">Slow</button><button data-pspeed="medium">Medium</button><button data-pspeed="fast">Fast</button>
+        </div>
+      </div>
+      <div id="phraseList"></div>
+    </div>
+
     <footer class="navbar">
+      <div id="nowPlaying" class="now-playing">
+        <span id="npLabel" class="np-label"></span>
+        <span id="npTokens" class="np-tokens"></span>
+        <button id="npStop" class="round" aria-label="Stop">■</button>
+      </div>
       <button id="navLeft" class="nav-btn" aria-label="Slide lower"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="minimap-wrap">
         <div id="minimap" aria-label="Octave map"><div id="mmWindow"></div></div>

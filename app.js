@@ -752,6 +752,7 @@ let scrolling = null, stageLeft = 0;
 stage.addEventListener('pointerdown', e => {
   e.preventDefault();
   unlock();
+  if (phrasePlayer) stopPhrase(); // playing yourself takes over from a phrase
   stageLeft = startOf(stage);
   const p = (ax(e) - stageLeft + scrollX) / step;
   const tch = {
@@ -1073,7 +1074,7 @@ function flashPluck(i) {
 // Sheets
 // =====================================================================
 function openSheet(id) { $(id).hidden = false; releaseAll(); }
-function closeSheet(id) { $(id).hidden = true; stopPreview(); }
+function closeSheet(id) { $(id).hidden = true; stopPhrase(); }
 document.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => closeSheet(b.closest('.sheet').id); });
 
 // ---------- Raga browser ----------
@@ -1148,10 +1149,13 @@ function renderDetail() {
     `<span class="${KIND[o] === 'shuddha' ? '' : 'alt'}"><b>${SWARA_NAME[o]}</b> ${KIND[o]}</span>`).join('');
   const meta = r.isFree ? 'Every swara, every form — experiment freely'
     : [r.isThaat ? 'Thaat (parent scale)' : r.thaat + ' thaat', inf.jati, r.time].filter(Boolean).join(' · ');
-  const facts = [];
-  facts.push(['Aaroh', formatPhrase(r.aaroh)], ['Avaroh', formatPhrase(r.avaroh)]);
-  if (r.pakad) facts.push(['Pakad', formatPhrase(r.pakad)]);
-  if (r.phrases && r.phrases.length) facts.push(['Key phrases', r.phrases.map(p => `<div>${esc(formatPhrase(p))}</div>`).join(''), true]);
+  // aaroh / avaroh / pakad / key phrases: each line has its own ▶ and lights up as it plays
+  const plays = ragaPhrases(r);
+  const row = (i) => `<button class="phrase-line" data-pl="${i}"><span class="play">▶</span><span class="v">${phraseHTML(plays[i][1])}</span></button>`;
+  const facts = [['Aaroh', row(0)], ['Avaroh', row(1)]];
+  let n = 2;
+  if (r.pakad) facts.push(['Pakad', row(n++)]);
+  if (r.phrases && r.phrases.length) facts.push(['Key phrases', r.phrases.map(() => row(n++)).join('')]);
   const vs = [];
   if (r.vadi) vs.push(`${r.vadi} <span class="muted small">vadi</span>`);
   if (r.samvadi) vs.push(`${r.samvadi} <span class="muted small">samvadi</span>`);
@@ -1165,7 +1169,7 @@ function renderDetail() {
       <div class="strip">${strip}</div>
       <div class="kinds">${kinds}</div>
       <div class="facts">
-        ${facts.map(([k, v, html]) => `<span class="k">${k}</span><span class="v">${html ? v : esc(v)}</span>`).join('')}
+        ${facts.map(([k, v]) => `<span class="k">${k}</span><span class="v rows">${v}</span>`).join('')}
         <span class="k">Notes</span><span class="v plain">${vs.join(' &nbsp;·&nbsp; ')}</span>
       </div>
       ${r.rules && r.rules.length ? `<ul class="rules">${r.rules.map(x => `<li>${esc(formatPhrase(x))}</li>`).join('')}</ul>` : ''}
@@ -1177,7 +1181,26 @@ function renderDetail() {
       <span class="grow"></span>
       <button class="btn primary" id="useBtn">${r.isFree ? 'Start free play' : 'Play ' + esc(r.isThaat ? r.thaat : r.name)}</button>
     </div>`;
-  $('hearBtn').onclick = () => togglePreview(r);
+  const lines = [...$('detail').querySelectorAll('.phrase-line')];
+  const playLine = (btn, str) => {
+    if (btn.classList.contains('playing')) { stopPhrase(); return; }
+    lines.forEach(l => { l.classList.remove('playing'); l.querySelector('.play').textContent = '▶'; });
+    $('hearBtn').textContent = '▶ Hear aaroh–avaroh';
+    btn.classList.add('playing');
+    btn.querySelector('.play').textContent = '■';
+    playPhrase(str, {
+      onToken: ti => btn.querySelectorAll('.tok').forEach(t => t.classList.toggle('cur', Number(t.dataset.i) === ti)),
+      onEnd: () => { btn.classList.remove('playing'); btn.querySelector('.play').textContent = '▶'; btn.querySelectorAll('.tok').forEach(t => t.classList.remove('cur')); },
+    });
+  };
+  lines.forEach(btn => { btn.onclick = () => playLine(btn, plays[Number(btn.dataset.pl)][1]); });
+  $('hearBtn').onclick = () => {
+    const hb = $('hearBtn');
+    if (hb.dataset.on) { stopPhrase(); return; }
+    lines.forEach(l => { l.classList.remove('playing'); l.querySelector('.play').textContent = '▶'; });
+    hb.dataset.on = '1'; hb.textContent = '■ Stop';
+    playPhrase(r.aaroh + ' , ' + r.avaroh, { onEnd: () => { delete hb.dataset.on; hb.textContent = '▶ Hear aaroh–avaroh'; } });
+  };
   $('useBtn').onclick = () => {
     S.raga = r.name;
     S.first = null; S.extra = null; // use this raga's tuning until you change it
@@ -1188,35 +1211,126 @@ function renderDetail() {
   };
 }
 
-// Preview aaroh + avaroh with the harmonium
-let preview = null;
-function togglePreview(r) {
-  if (preview) { stopPreview(); return; }
-  unlock();
-  const seq = [...tokens(r.aaroh), ...tokens(r.avaroh)];
+// =====================================================================
+// Phrase player: plays aaroh / avaroh / pakad / key phrases on the harmonium,
+// lighting the actual pads as it goes (and scrolling them into view).
+// =====================================================================
+const PHRASE_SPEEDS = { slow: 0.6, medium: 0.4, fast: 0.24 }; // seconds per note
+const PHRASE_RE = /([SrRgGmMPdDnN])([.']?)|,/g;
+let phrasePlayer = null;
+
+// Phrase text as tappable tokens: <span class="tok" data-i="n">…</span>
+function phraseHTML(str) {
   let i = 0;
-  const btn = $('hearBtn');
-  btn.textContent = '■ Stop';
-  preview = { voice: null, timer: null };
-  const stepFn = () => {
-    if (!preview) return;
-    if (i >= seq.length) { stopPreview(); return; }
-    const t = seq[i++];
-    const midi = saMidi() + t.oct * 12 + OFF[t.l];
-    if (preview.voice) preview.voice.setPitch(midi, 0.025);
-    else preview.voice = harmoniumVoice(midi);
-    preview.timer = setTimeout(stepFn, i === Math.ceil(seq.length / 2) ? 700 : 420);
+  return esc(str).replace(/([SrRgGmMPdDnN])([.']?)/g, (_, l, o) =>
+    `<span class="tok" data-i="${i++}">${swaraText(l, o === '.' ? -1 : o === "'" ? 1 : 0)}</span>`);
+}
+function ragaPhrases(r) {
+  const items = [['Aaroh', r.aaroh], ['Avaroh', r.avaroh]];
+  if (r.pakad) items.push(['Pakad', r.pakad]);
+  (r.phrases || []).forEach((p, i) => items.push([r.phrases.length > 1 ? `Phrase ${i + 1}` : 'Key phrase', p]));
+  return items;
+}
+const padIndexFor = (oct, off) => pads.findIndex(p => p.oct === oct && p.offs.includes(off));
+function keepPadVisible(i, anim) {
+  const W = stage.clientWidth, x = i * step;
+  if (x >= scrollX + step * 0.3 && x + step <= scrollX + W - step * 0.3) return;
+  scrollX = x - W / 2 + step / 2;
+  clampScroll();
+  applyScroll(anim);
+}
+
+function playPhrase(str, hooks = {}) {
+  stopPhrase();
+  unlock();
+  const seq = [];
+  let ti = 0;
+  for (const m of str.matchAll(PHRASE_RE)) {
+    if (m[0] === ',') seq.push({ rest: true });
+    else seq.push({ off: OFF[m[1]], oct: m[2] === '.' ? -1 : m[2] === "'" ? 1 : 0, ti: ti++ });
+  }
+  const dur = PHRASE_SPEEDS[S.phraseSpeed] || PHRASE_SPEEDS.medium;
+  const pl = { voice: null, timer: null, held: { heldEl: null }, hooks };
+  phrasePlayer = pl;
+  // bring the phrase's range into view first
+  const idxs = seq.filter(x => !x.rest).map(x => padIndexFor(x.oct, x.off)).filter(i => i >= 0);
+  if (idxs.length) keepPadVisible(Math.round((Math.min(...idxs) + Math.max(...idxs)) / 2), true);
+  let k = 0;
+  const next = () => {
+    if (phrasePlayer !== pl) return;
+    if (k >= seq.length) { stopPhrase(); return; }
+    const x = seq[k++];
+    if (x.rest) {
+      // phrase break: lift the note, short breath
+      if (pl.voice) { pl.voice.stop(false); pl.voice = null; }
+      showHeld(pl.held, null);
+      pl.timer = setTimeout(next, dur * 600);
+      return;
+    }
+    const midi = saMidi() + x.oct * 12 + x.off;
+    if (pl.voice) pl.voice.setPitch(midi, 0.012);
+    else pl.voice = harmoniumVoice(midi);
+    const pi = padIndexFor(x.oct, x.off);
+    if (pi >= 0) { showHeld(pl.held, elFor(pi, x.off)); keepPadVisible(pi, true); }
+    if (hooks.onToken) hooks.onToken(x.ti);
+    pl.timer = setTimeout(next, dur * 1000 * (k === seq.length ? 1.8 : 1));
   };
-  stepFn();
+  next();
 }
-function stopPreview() {
-  if (!preview) return;
-  clearTimeout(preview.timer);
-  if (preview.voice) preview.voice.stop(false);
-  preview = null;
-  const btn = $('hearBtn');
-  if (btn) btn.textContent = '▶ Hear aaroh–avaroh';
+function stopPhrase() {
+  const pl = phrasePlayer;
+  if (!pl) return;
+  phrasePlayer = null;
+  clearTimeout(pl.timer);
+  if (pl.voice) pl.voice.stop(false);
+  showHeld(pl.held, null);
+  if (pl.hooks.onEnd) pl.hooks.onEnd();
 }
+
+// ---------- Phrase panel on the main screen ----------
+let phraseKey = null; // which item is playing
+function renderPhrasePanel() {
+  const r = currentRaga();
+  $('phraseTitle').textContent = r.isThaat ? r.thaat + ' thaat' : r.name;
+  document.querySelectorAll('[data-pspeed]').forEach(b => b.classList.toggle('sel', b.dataset.pspeed === (S.phraseSpeed || 'medium')));
+  $('phraseList').innerHTML = ragaPhrases(r).map(([k, v], i) =>
+    `<button class="phrase-item${phraseKey === i ? ' playing' : ''}" data-pi="${i}"><span class="k">${k}</span><span class="v">${phraseHTML(v)}</span><span class="play">${phraseKey === i ? '■' : '▶'}</span></button>`).join('');
+  $('phraseList').querySelectorAll('.phrase-item').forEach(b => {
+    b.onclick = () => {
+      const i = Number(b.dataset.pi);
+      if (phraseKey === i) { stopPhrase(); return; }
+      const [label, str] = ragaPhrases(currentRaga())[i];
+      $('phrasePanel').hidden = true;
+      startNowPlaying(label, str, i);
+    };
+  });
+}
+function startNowPlaying(label, str, i) {
+  phraseKey = i;
+  $('npLabel').textContent = label;
+  $('npTokens').innerHTML = phraseHTML(str);
+  document.querySelector('.navbar').classList.add('np');
+  playPhrase(str, {
+    onToken: ti => {
+      $('npTokens').querySelectorAll('.tok').forEach(t => t.classList.toggle('cur', Number(t.dataset.i) === ti));
+    },
+    onEnd: () => { phraseKey = null; document.querySelector('.navbar').classList.remove('np'); },
+  });
+}
+$('phrasesBtn').onclick = e => {
+  e.stopPropagation();
+  const p = $('phrasePanel');
+  if (p.hidden) { renderPhrasePanel(); p.hidden = false; } else p.hidden = true;
+};
+$('npStop').onclick = () => stopPhrase();
+document.querySelectorAll('[data-pspeed]').forEach(b => {
+  b.onclick = e => { e.stopPropagation(); S.phraseSpeed = b.dataset.pspeed; save(); renderPhrasePanel(); };
+});
+// tapping anywhere else closes the panel
+document.addEventListener('pointerdown', e => {
+  const p = $('phrasePanel');
+  if (!p.hidden && !p.contains(e.target) && e.target.closest('#phrasesBtn') === null) p.hidden = true;
+}, true);
 
 // ---------- Settings ----------
 $('settingsBtn').onclick = () => { renderSettings(); openSheet('settings'); };

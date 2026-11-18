@@ -595,3 +595,50 @@ button:focus:not(:focus-visible) { outline: none; }
 .install-text .share-ico { display: inline-block; vertical-align: -3px; margin: 0 2px; color: #4da3ff; }
 .btn.small { height: 36px; padding: 0 14px; font-size: 14px; flex: none; }
 @keyframes rise { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+/* ---------- phrase panel & now playing ---------- */
+.topbar-right { justify-self: end; display: flex; gap: 8px; }
+.phrase-panel {
+  position: fixed;
+  top: calc(60px + env(safe-area-inset-top));
+  right: calc(12px + var(--pr));
+  z-index: 30;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100% - 140px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #1c1c20;
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .55);
+  padding: 10px;
+}
+.phrase-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 8px; }
+.small-seg { height: 30px; }
+.small-seg button { font-size: 12px; padding: 0 10px; }
+.phrase-item, .phrase-line {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  text-align: left;
+  padding: 9px 8px;
+}
+.phrase-item:active, .phrase-line:active { background: #26262b; }
+.phrase-item .k { width: 68px; flex: none; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.phrase-item .v, .phrase-line .v { flex: 1; font-size: 17px; letter-spacing: .06em; }
+.phrase-item .play, .phrase-line .play { flex: none; color: var(--accent); font-size: 13px; width: 16px; text-align: center; }
+.phrase-item.playing, .phrase-line.playing { background: var(--sa-bg); }
+.phrase-line { padding: 4px 6px; margin-left: -6px; }
+.facts .v.rows { display: flex; flex-direction: column; gap: 2px; }
+.tok { border-radius: 4px; padding: 0 1px; transition: background .08s, color .08s; }
+.tok.cur { background: var(--accent); color: var(--accent-ink); }
+
+.now-playing { display: none; align-items: center; gap: 12px; padding: 0 8px; max-width: 100%; }
+.navbar.np .now-playing { display: flex; }
+.navbar.np .nav-btn, .navbar.np .minimap-wrap { display: none; }
+.np-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.np-tokens { font-size: 19px; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
