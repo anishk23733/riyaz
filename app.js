@@ -567,7 +567,8 @@ const SWARA_GROUPS = [[0], [1, 2], [3, 4], [5, 6], [7], [8, 9], [10, 11]];
 const heldCount = new Map(); // element -> number of fingers on it
 
 function swaraTag(r, off) {
-  if (r.isThaat || r.isFree) return '';
+  if (r.isFree) return KIND[off]; // shuddha / komal / tivra (S and P have none)
+  if (r.isThaat) return '';
   const letter = LETTERS[off];
   if (r.vadi === letter) return 'vadi';
   if (r.samvadi === letter) return 'samvadi';
