@@ -16,6 +16,8 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- In portrait, #root is drawn rotated 90° so the app is always landscape -->
+  <div id="root">
   <div id="app">
     <header class="topbar">
       <button id="ragaBtn" class="chip raga-chip" aria-label="Choose raga">
@@ -135,6 +137,8 @@
       </div>
     </div>
   </section>
+
+  </div>
 
   <script src="ragas.js"></script>
   <script src="app.js"></script>

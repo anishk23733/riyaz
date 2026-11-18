@@ -42,6 +42,26 @@ button { cursor: pointer; touch-action: manipulation; }
 .lower { text-transform: none; letter-spacing: normal; }
 .w56 { min-width: 56px; }
 
+#root { position: fixed; inset: 0; overflow: hidden; }
+
+/* iPhones can't lock orientation, so in portrait we draw the whole app rotated 90°:
+   turn the phone sideways (works with Portrait Orientation Lock on) and it's upright. */
+@media (orientation: portrait) {
+  #root {
+    inset: auto;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    width: 100dvh;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
+  #app, .sheet {
+    padding: 0 env(safe-area-inset-bottom) 0 env(safe-area-inset-top);
+  }
+}
+
 #app {
   height: 100%;
   display: flex;
@@ -464,7 +484,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .balance-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: -4px; }
 
 /* ---------- narrow / portrait ---------- */
-@media (max-width: 700px) {
+@media (orientation: landscape) and (max-width: 700px) {
   #tree { width: 44%; }
   .browser-body { flex-direction: column; }
   #tree { width: auto; max-height: 45%; border-right: none; border-bottom: 1px solid #26262b; }
@@ -474,7 +494,7 @@ button { cursor: pointer; touch-action: manipulation; }
   .tanpura-btn span { display: none; }
   #ragaThaat { display: none; }
 }
-@media (max-height: 420px) {
+@media (orientation: landscape) and (max-height: 420px), (orientation: portrait) and (max-width: 420px) {
   .navbar { height: 52px; }
   #stage { margin-top: 10px; }
 }

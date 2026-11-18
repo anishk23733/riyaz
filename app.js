@@ -64,7 +64,7 @@ const mtof = m => 440 * Math.pow(2, (m - 69) / 12 + S.cents / 1200);
 // =====================================================================
 // Audio engine
 // =====================================================================
-let ctx = null, master, notesBus, tanpuraBus, reedWave;
+let ctx = null, master, notesBus, tanpuraBus, reedWave, reedBus, noiseBuf;
 
 function audio() {
   if (ctx) return ctx;
@@ -76,10 +76,31 @@ function audio() {
   master = ctx.createGain(); master.gain.value = 0.9; master.connect(comp);
   notesBus = ctx.createGain(); notesBus.connect(master);
   tanpuraBus = ctx.createGain(); tanpuraBus.connect(master);
-  // Harmonium reed: rich, slightly nasal spectrum
-  const N = 48, real = new Float32Array(N), imag = new Float32Array(N);
-  for (let n = 1; n < N; n++) imag[n] = Math.pow(n, -0.85) * (n % 2 ? 1 : 0.65) * (n > 14 ? 0.6 : 1);
+  // --- Harmonium model ---
+  // Free reeds vibrate like a narrow pulse: buzzy, with notches in the spectrum.
+  const N = 80, real = new Float32Array(N), imag = new Float32Array(N), duty = 0.23;
+  for (let n = 1; n < N; n++) imag[n] = Math.abs(Math.sin(Math.PI * n * duty)) / n * Math.exp(-n / 55);
   reedWave = ctx.createPeriodicWave(real, imag);
+
+  // Shared "instrument body": bellows wobble -> wooden-box resonances -> soften the top end.
+  reedBus = ctx.createGain();
+  const bellows = ctx.createGain(); bellows.gain.value = 1;
+  const lfo1 = ctx.createOscillator(), lfo1g = ctx.createGain();
+  lfo1.frequency.value = 0.55; lfo1g.gain.value = 0.06;      // slow pumping of the bellows
+  const lfo2 = ctx.createOscillator(), lfo2g = ctx.createGain();
+  lfo2.frequency.value = 4.7; lfo2g.gain.value = 0.015;      // slight air-pressure flutter
+  lfo1.connect(lfo1g).connect(bellows.gain); lfo2.connect(lfo2g).connect(bellows.gain);
+  lfo1.start(); lfo2.start();
+  const body1 = ctx.createBiquadFilter(); body1.type = 'peaking'; body1.frequency.value = 850; body1.Q.value = 1.2; body1.gain.value = 4;
+  const body2 = ctx.createBiquadFilter(); body2.type = 'peaking'; body2.frequency.value = 2300; body2.Q.value = 1.5; body2.gain.value = 5;
+  const box = ctx.createBiquadFilter(); box.type = 'peaking'; box.frequency.value = 300; box.Q.value = 0.9; box.gain.value = -3;
+  const top = ctx.createBiquadFilter(); top.type = 'lowpass'; top.frequency.value = 6500; top.Q.value = 0.5;
+  reedBus.connect(bellows).connect(box).connect(body1).connect(body2).connect(top).connect(notesBus);
+
+  // A little air noise for the reeds.
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   applyBalance();
   return ctx;
 }
@@ -95,26 +116,46 @@ function applyBalance() {
 }
 
 // One sustained harmonium voice whose pitch can glide (meend).
+// Like a real 2-reed harmonium: the main reed, a second reed tuned a few cents sharp
+// (the gentle beating you hear on a real one) and a lower-octave "bass" reed.
 function harmoniumVoice(midi) {
   const c = audio(), t = c.currentTime, f = mtof(midi);
-  const o1 = c.createOscillator(), o2 = c.createOscillator();
-  o1.setPeriodicWave(reedWave); o2.setPeriodicWave(reedWave);
-  o1.frequency.value = f; o2.frequency.value = f; o2.detune.value = 6;
-  const lp = c.createBiquadFilter();
-  lp.type = 'lowpass'; lp.frequency.value = Math.min(5200, f * 14); lp.Q.value = 0.4;
+  const reeds = [
+    { ratio: 1, detune: 0, level: 1 },
+    { ratio: 1, detune: 4, level: 0.55 },
+    { ratio: 0.5, detune: -2, level: 0.5 },
+  ];
   const g = c.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.setTargetAtTime(0.16, t, 0.018);
-  o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(notesBus);
-  o1.start(t); o2.start(t);
+  g.gain.setTargetAtTime(0.085, t, 0.028); // reeds take a moment to speak
+  g.connect(reedBus);
+  const oscs = reeds.map(r => {
+    const o = c.createOscillator(), lv = c.createGain();
+    o.setPeriodicWave(reedWave);
+    o.detune.value = r.detune;
+    // reeds start slightly flat and settle onto pitch
+    o.frequency.setValueAtTime(f * r.ratio * 0.993, t);
+    o.frequency.setTargetAtTime(f * r.ratio, t, 0.035);
+    lv.gain.value = r.level;
+    o.connect(lv).connect(g);
+    o.start(t);
+    return { o, ratio: r.ratio };
+  });
+  // breathy air noise, mostly at the attack
+  const nz = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain();
+  nz.buffer = noiseBuf; nz.loop = true; nz.loopStart = Math.random();
+  nf.type = 'bandpass'; nf.frequency.value = 2800; nf.Q.value = 0.8;
+  ng.gain.setValueAtTime(0, t);
+  ng.gain.linearRampToValueAtTime(0.05, t + 0.012);
+  ng.gain.setTargetAtTime(0.012, t + 0.012, 0.05);
+  nz.connect(nf).connect(ng).connect(g);
+  nz.start(t);
   let stopped = false;
   return {
     setPitch(m, tc) {
       if (stopped) return;
       const tt = c.currentTime, ff = mtof(m);
-      o1.frequency.setTargetAtTime(ff, tt, tc);
-      o2.frequency.setTargetAtTime(ff, tt, tc);
-      lp.frequency.setTargetAtTime(Math.min(5200, ff * 14), tt, 0.03);
+      for (const { o, ratio } of oscs) o.frequency.setTargetAtTime(ff * ratio, tt, tc);
     },
     stop(fast) {
       if (stopped) return;
@@ -122,8 +163,9 @@ function harmoniumVoice(midi) {
       const tt = c.currentTime;
       g.gain.cancelScheduledValues(tt);
       g.gain.setValueAtTime(g.gain.value, tt);
-      g.gain.setTargetAtTime(0, tt, fast ? 0.012 : 0.05);
-      o1.stop(tt + 0.6); o2.stop(tt + 0.6);
+      g.gain.setTargetAtTime(0, tt, fast ? 0.012 : 0.045);
+      for (const { o } of oscs) o.stop(tt + 0.5);
+      nz.stop(tt + 0.5);
     },
   };
 }
@@ -373,6 +415,12 @@ function setHeld(idx, delta) {
 }
 
 // ---------- gestures ----------
+// In portrait the whole app is drawn rotated 90° (see style.css), so the app's
+// "horizontal" axis is the screen's vertical one. These map screen touches into app space.
+const portraitMQ = matchMedia('(orientation: portrait)');
+const ax = e => portraitMQ.matches ? e.clientY : e.clientX;      // along the pads
+const ay = e => portraitMQ.matches ? -e.clientX : e.clientY;     // across the pads
+const startOf = el => { const r = el.getBoundingClientRect(); return portraitMQ.matches ? r.top : r.left; };
 // One finger always plays (and slides = meend). Two fingers that land together and
 // move sideways together scroll the strip instead.
 const touches = new Map();
@@ -381,9 +429,9 @@ let scrolling = null, stageLeft = 0;
 stage.addEventListener('pointerdown', e => {
   e.preventDefault();
   unlock();
-  stageLeft = stage.getBoundingClientRect().left;
-  const p = (e.clientX - stageLeft + scrollX) / step;
-  const tch = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: performance.now(), lastChange: performance.now(), voice: null, idx: -1 };
+  stageLeft = startOf(stage);
+  const p = (ax(e) - stageLeft + scrollX) / step;
+  const tch = { id: e.pointerId, x0: ax(e), y0: ay(e), x: ax(e), y: ay(e), t0: performance.now(), lastChange: performance.now(), voice: null, idx: -1 };
   touches.set(e.pointerId, tch);
   if (scrolling) { scrolling.ids.add(e.pointerId); return; }
   const padIdx = padAt(p, -1);
@@ -395,7 +443,7 @@ stage.addEventListener('pointerdown', e => {
 window.addEventListener('pointermove', e => {
   const tch = touches.get(e.pointerId);
   if (!tch) return;
-  tch.x = e.clientX; tch.y = e.clientY;
+  tch.x = ax(e); tch.y = ay(e);
 
   if (scrolling) {
     const xs = [...touches.values()].filter(t => scrolling.ids.has(t.id)).map(t => t.x);
@@ -421,7 +469,7 @@ window.addEventListener('pointermove', e => {
   }
 
   if (!tch.voice) return;
-  const p = (e.clientX - stageLeft + scrollX) / step;
+  const p = (ax(e) - stageLeft + scrollX) / step;
   const idx = padAt(p, tch.idx);
   if (idx === tch.idx) return;
   const now = performance.now();
@@ -456,8 +504,7 @@ $('navRight').onclick = () => slideBy(4);
 
 // Minimap: tap or drag to jump
 function minimapJump(e, anim) {
-  const rect = minimap.getBoundingClientRect();
-  const idx = (e.clientX - rect.left - 3) / 12;
+  const idx = (ax(e) - startOf(minimap) - 3) / 12;
   scrollX = (idx - stage.clientWidth / step / 2) * step;
   clampScroll();
   applyScroll(anim);
@@ -469,6 +516,7 @@ minimap.addEventListener('pointerup', () => { mmDragging = false; slideBy(0); })
 minimap.addEventListener('pointercancel', () => { mmDragging = false; });
 
 window.addEventListener('resize', () => { if (info) layout(); });
+portraitMQ.addEventListener('change', () => { releaseAll(); if (info) requestAnimationFrame(layout); });
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
 
