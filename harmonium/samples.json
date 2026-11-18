@@ -3,78 +3,91 @@
   "file": "C2.wav",
   "midi": 36,
   "loopStart": 1.2,
-  "loopEnd": 3.652406
+  "loopEnd": 3.652406,
+  "cents": -5.5
  },
  {
   "file": "Ds2.wav",
   "midi": 39,
   "loopStart": 1.4,
-  "loopEnd": 3.712125
+  "loopEnd": 3.712125,
+  "cents": 4.7
  },
  {
   "file": "Fs2.wav",
   "midi": 42,
   "loopStart": 1.6,
-  "loopEnd": 3.975031
+  "loopEnd": 3.975031,
+  "cents": 3.0
  },
  {
   "file": "A2.wav",
   "midi": 45,
   "loopStart": 1.8,
-  "loopEnd": 4.350031
+  "loopEnd": 4.350031,
+  "cents": 5.0
  },
  {
   "file": "C3.wav",
   "midi": 48,
   "loopStart": 2.0,
-  "loopEnd": 4.30525
+  "loopEnd": 4.30525,
+  "cents": 4.0
  },
  {
   "file": "Ds3.wav",
   "midi": 51,
   "loopStart": 1.6,
-  "loopEnd": 4.258125
+  "loopEnd": 4.258125,
+  "cents": 2.7
  },
  {
   "file": "Fs3.wav",
   "midi": 54,
   "loopStart": 1.2,
-  "loopEnd": 3.696563
+  "loopEnd": 3.696563,
+  "cents": 14.8
  },
  {
   "file": "A3.wav",
   "midi": 57,
   "loopStart": 1.8,
-  "loopEnd": 4.236187
+  "loopEnd": 4.236187,
+  "cents": 8.7
  },
  {
   "file": "C4.wav",
   "midi": 60,
   "loopStart": 1.4,
-  "loopEnd": 3.829531
+  "loopEnd": 3.829531,
+  "cents": 7.5
  },
  {
   "file": "Ds4.wav",
   "midi": 63,
   "loopStart": 1.4,
-  "loopEnd": 4.293812
+  "loopEnd": 4.293812,
+  "cents": 7.7
  },
  {
   "file": "G4.wav",
   "midi": 67,
   "loopStart": 2.0,
-  "loopEnd": 4.610125
+  "loopEnd": 4.610125,
+  "cents": 7.3
  },
  {
   "file": "C5.wav",
   "midi": 72,
   "loopStart": 1.8,
-  "loopEnd": 4.161437
+  "loopEnd": 4.161437,
+  "cents": 8.9
  },
  {
   "file": "D5.wav",
   "midi": 74,
   "loopStart": 2.0,
-  "loopEnd": 4.562281
+  "loopEnd": 4.562281,
+  "cents": 9.7
  }
 ]

@@ -188,13 +188,28 @@ async function decodeHarmonium() {
   await Promise.all(Harm.list.map(s => new Promise((ok, fail) => c.decodeAudioData(Harm.raw.get(s.file).slice(0), b => { s.buf = b; ok(); }, fail))));
   Harm.ready = Harm.list.every(s => s.buf);
 }
-function nearestSample(m) {
-  let best = Harm.list[0];
-  for (const s of Harm.list) if (Math.abs(s.midi - m) < Math.abs(best.midi - m)) best = s;
-  return best;
-}
-const rateFor = (m, s) => mtof(m) / (440 * Math.pow(2, (s.midi - 69) / 12));
+// Each recording's true pitch (measured; they're a few cents sharp, by different amounts).
+const sampleHz = s => 440 * Math.pow(2, (s.midi - 69) / 12 + (s.cents || 0) / 1200);
+const rateFor = (m, s) => mtof(m) / sampleHz(s);
 const SAMPLE_LEVEL = 0.9;
+const BLEND = 0.15; // around halfway between two recordings, blend them (fraction of the gap either side)
+
+// Which recordings to hear at a pitch, and how loud. Near a recording's own note you hear just
+// that recording; around halfway to the next one the two are blended (equal-loudness). Because
+// this depends only on the pitch, a note sounds the same whether you tap it or slide to it,
+// and no recording is ever stretched by more than about half the gap between recordings.
+function sampleWeights(m) {
+  const L = Harm.list;
+  if (m <= L[0].midi) return [[L[0], 1]];
+  if (m >= L[L.length - 1].midi) return [[L[L.length - 1], 1]];
+  let i = 0;
+  while (L[i + 1].midi < m) i++;
+  const a = L[i], b = L[i + 1], t = (m - a.midi) / (b.midi - a.midi);
+  if (t <= 0.5 - BLEND) return [[a, 1]];
+  if (t >= 0.5 + BLEND) return [[b, 1]];
+  const x = (t - (0.5 - BLEND)) / (2 * BLEND);
+  return [[a, Math.cos(x * Math.PI / 2)], [b, Math.sin(x * Math.PI / 2)]];
+}
 
 function sampledVoice(midi, quick) {
   const c = audio(), t = c.currentTime;
@@ -203,42 +218,50 @@ function sampledVoice(midi, quick) {
   out.gain.setValueAtTime(0, t);
   out.gain.linearRampToValueAtTime(SAMPLE_LEVEL, t + (quick ? 0.015 : 0.025));
   out.connect(notesBus);
-  let stopped = false, swapTimer = null, target = midi;
-  // One looping recording, pitch-shifted to the note; meend bends its playback rate.
-  function layer(m, when, fade, offset) {
-    const s = nearestSample(m);
+  const layers = new Map(); // recording -> { src, g }
+  let stopped = false;
+  // First note of a phrase uses the recorded attack; fast notes start in the steady tone.
+  const startOffset = quick ? 0.35 : 0.01;
+
+  function layerFor(s, when, offset) {
+    let L = layers.get(s);
+    if (L) return L;
     const src = c.createBufferSource();
     src.buffer = s.buf; src.loop = true; src.loopStart = s.loopStart; src.loopEnd = s.loopEnd;
-    src.playbackRate.setValueAtTime(rateFor(m, s), when);
     const g = c.createGain();
-    g.gain.setValueAtTime(fade ? 0 : 1, when);
-    if (fade) g.gain.linearRampToValueAtTime(1, when + fade);
+    g.gain.setValueAtTime(0, when);
     src.connect(g).connect(out);
     src.start(when, offset);
-    return { s, src, g };
+    L = { src, g };
+    layers.set(s, L);
+    return L;
   }
-  // First note of a phrase uses the recorded attack; fast notes start in the steady tone.
-  let cur = layer(midi, t, 0, quick ? 0.35 : 0.01);
+  // Move every layer to pitch m (gliding with time constant tc) and set the blend for m.
+  function goTo(m, tc, first) {
+    const tt = c.currentTime;
+    const want = new Map(sampleWeights(m));
+    for (const s of want.keys()) layerFor(s, tt, first ? startOffset : s.loopStart + Math.random() * 0.4);
+    for (const [s, L] of layers) {
+      L.src.playbackRate.cancelScheduledValues(tt);
+      if (first) L.src.playbackRate.setValueAtTime(rateFor(m, s), tt);
+      else L.src.playbackRate.setTargetAtTime(rateFor(m, s), tt, tc);
+      const w = want.get(s) || 0;
+      L.g.gain.cancelScheduledValues(tt);
+      if (first) L.g.gain.setValueAtTime(w, tt);
+      else L.g.gain.setTargetAtTime(w, tt, Math.max(0.015, tc));
+      if (w === 0) {
+        // fully faded out: stop it shortly (unless the pitch comes back)
+        clearTimeout(L.kill);
+        L.kill = setTimeout(() => {
+          if (!want.has(s) && layers.get(s) === L && L.g.gain.value < 0.01) { L.src.stop(); layers.delete(s); }
+        }, 400);
+      } else clearTimeout(L.kill);
+    }
+  }
+  goTo(midi, 0, true);
+
   return {
-    setPitch(m, tc) {
-      if (stopped) return;
-      target = m;
-      const tt = c.currentTime;
-      cur.src.playbackRate.cancelScheduledValues(tt);
-      cur.src.playbackRate.setTargetAtTime(rateFor(m, cur.s), tt, tc);
-      // Once the pitch settles far from this recording, crossfade to the nearest recorded note
-      // so the timbre stays natural.
-      clearTimeout(swapTimer);
-      if (nearestSample(m) === cur.s) return;
-      swapTimer = setTimeout(() => {
-        if (stopped || target !== m) return;
-        const t2 = c.currentTime, old = cur;
-        cur = layer(m, t2, 0.06, cur.s.loopStart + Math.random() * 0.4);
-        old.g.gain.setValueAtTime(1, t2);
-        old.g.gain.linearRampToValueAtTime(0, t2 + 0.06);
-        old.src.stop(t2 + 0.12);
-      }, Math.max(40, tc * 4000));
-    },
+    setPitch(m, tc) { if (!stopped) goTo(m, tc, false); },
     articulate() {
       if (stopped) return;
       const tt = c.currentTime;
@@ -250,12 +273,11 @@ function sampledVoice(midi, quick) {
     stop(fast) {
       if (stopped) return;
       stopped = true;
-      clearTimeout(swapTimer);
       const tt = c.currentTime;
       out.gain.cancelScheduledValues(tt);
       out.gain.setValueAtTime(out.gain.value, tt);
       out.gain.setTargetAtTime(0, tt, fast ? 0.01 : 0.03);
-      cur.src.stop(tt + 0.4);
+      for (const L of layers.values()) { clearTimeout(L.kill); L.src.stop(tt + 0.4); }
     },
   };
 }
@@ -605,8 +627,20 @@ const elFor = (i, off) => { const p = pads[i]; return !p.split ? p.el : off === 
 // finger pauses, the pitch eases onto the nearest raga note, so it never rests off-raga.
 const HOLD = 0.2;           // part of each pad (either side of its middle) that holds the exact note
 const MEEND_SMOOTH = 0.045; // smoothing (s) — removes finger jitter so the curve sounds sung
-const SETTLE_MS = 70;       // pause this long and the pitch settles onto the nearest note
+const SETTLE_MS = 60;       // slow/still this long and the pitch locks onto the nearest note
 const TAAN_SPEED = 5;       // pads per second; faster than this = taan (crisp notes, no glide)
+const SPEED_WINDOW = 100;   // ms of finger history used to judge speed
+const UNLOCK_DIST = 0.15;   // how far (in pads) the finger must move before a slide starts
+const SETTLE_SPEED = 0.8;   // pads per second; slower than this (for SETTLE_MS) = holding a note
+function lockOn(tch, idx, off, p) {
+  clearTimeout(tch.settle);
+  tch.locked = true;
+  tch.lockP = p;
+  tch.slowSince = 0;
+  tch.voice.setPitch(offMidi(idx, off), 0.035);
+  tch.idx = idx; tch.off = off;
+  showHeld(tch, elFor(idx, off));
+}
 function meendPitch(p, tch) {
   const N = pads.length, q = p - 0.5, i = Math.floor(q), t = q - i;
   if (i < 0) return offMidi(0, variantOf(0, tch));
@@ -668,6 +702,8 @@ stage.addEventListener('pointerdown', e => {
   tch.idx = idx;
   tch.p0 = p;
   tch.shift = (idx + 0.5) - p;
+  tch.locked = true;      // a touch starts locked on the pad's exact note
+  tch.lockP = idx + 0.5;  // (same coordinates as the slide position, which starts at the pad's middle)
   if (pads[idx].split) { tch.choice = tch.yHalf === 'hi' ? pads[idx].hi : pads[idx].lo; tch.choiceIdx = idx; }
   const off = variantOf(idx, tch);
   tch.off = off;
@@ -725,29 +761,49 @@ window.addEventListener('pointermove', e => {
     return;
   }
 
-  // Meend. Where you first touched always sounds that pad's exact note; that offset fades
-  // out over the first pad of movement, so the pitch stays in line with your finger.
-  const moved = Math.abs(raw - tch.p0);
-  if (moved < 0.12) {
-    // still on the first pad: only a vertical change of form (split pad) changes the note
-    const off = variantOf(tch.idx, tch);
-    if (off !== tch.off) {
-      tch.off = off;
-      tch.voice.setPitch(offMidi(tch.idx, off), MEEND_SMOOTH * 1.5);
-      showHeld(tch, elFor(tch.idx, off));
-    }
-    return;
-  }
-  const p = raw + tch.shift * Math.max(0, 1 - moved);
-  // How fast is the finger moving (pads per second)? Slow = meend, fast = crisp taan.
+  // Meend happens only while you're actually sliding.
+  //  - Touching a pad locks onto its exact note; small finger wobble does nothing.
+  //  - Moving clearly away (UNLOCK_DIST) starts a slide: pitch glides along the raga's notes.
+  //  - Slowing down / stopping (judged by finger speed, not by events stopping — iPhones keep
+  //    reporting tiny movements while you hold) locks onto the nearest note again, and it
+  //    stays locked until you clearly move.
   const now = performance.now();
-  if (tch.lastT) {
-    const inst = Math.abs(p - tch.lastP) / Math.max(1, now - tch.lastT) * 1000;
-    tch.speed = 0.6 * (tch.speed || 0) + 0.4 * inst;
+  const p = raw + tch.shift * Math.max(0, 1 - Math.abs(raw - tch.p0));
+  // Speed = net movement over the last ~100 ms, so a finger that jitters in place reads as still.
+  (tch.hist || (tch.hist = [])).push([now, p]);
+  while (tch.hist.length > 2 && now - tch.hist[1][0] > SPEED_WINDOW) tch.hist.shift();
+  const [t0, p0] = tch.hist[0];
+  tch.speed = now - t0 > 15 ? Math.abs(p - p0) / (now - t0) * 1000 : (tch.speed || 0);
+
+  if (tch.locked) {
+    if (Math.abs(p - tch.lockP) < UNLOCK_DIST) {
+      // holding: only a deliberate move to the other half of a split pad changes the note
+      const off = variantOf(tch.idx, tch);
+      if (off !== tch.off) {
+        tch.off = off;
+        tch.voice.setPitch(offMidi(tch.idx, off), MEEND_SMOOTH * 1.5);
+        showHeld(tch, elFor(tch.idx, off));
+      }
+      return;
+    }
+    tch.locked = false;  // clearly moving: start sliding
+    tch.slowSince = 0;
   }
-  tch.lastT = now; tch.lastP = p;
+
   const idx = nearestPad(p), off = variantOf(idx, tch);
   const changed = idx !== tch.idx || off !== tch.off;
+
+  if (tch.speed < SETTLE_SPEED) {
+    // slowing down: once slow for a moment, lock onto the nearest raga note
+    if (!tch.slowSince) tch.slowSince = now;
+    if (now - tch.slowSince > SETTLE_MS) {
+      lockOn(tch, idx, off, p);
+      return;
+    }
+  } else {
+    tch.slowSince = 0;
+  }
+
   if (tch.speed > TAAN_SPEED) {
     // Taan: jump almost straight to each exact note, with a tiny articulation between notes.
     if (changed) { tch.voice.setPitch(offMidi(idx, off), 0.006); tch.voice.articulate(); }
@@ -756,12 +812,9 @@ window.addEventListener('pointermove', e => {
   }
   tch.idx = idx; tch.off = off;
   showHeld(tch, elFor(idx, off));
+  // fallback: if events stop entirely, also lock on
   clearTimeout(tch.settle);
-  tch.settle = setTimeout(() => {
-    if (!tch.voice) return;
-    const i2 = nearestPad(p), o2 = variantOf(i2, tch);
-    tch.voice.setPitch(offMidi(i2, o2), 0.05);
-  }, SETTLE_MS);
+  tch.settle = setTimeout(() => { if (tch.voice && !tch.locked) lockOn(tch, nearestPad(p), variantOf(nearestPad(p), tch), p); }, SETTLE_MS);
 });
 
 function endTouch(e) {
