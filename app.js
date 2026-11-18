@@ -1145,7 +1145,7 @@ function renderDetail() {
   const inf = ragaInfo(r);
   const strip = LETTERS.map((l, i) => `<span class="${i === 0 ? 'sa' : inf.all.includes(i) ? 'on' : ''}">${l}</span>`).join('');
   const kinds = inf.all.filter(o => o !== 0 && o !== 7).map(o =>
-    `<span class="${KIND[o] === 'shuddha' ? '' : 'alt'}"><b>${LETTERS[o]}</b> ${SWARA_NAME[o]} ${KIND[o]}</span>`).join('');
+    `<span class="${KIND[o] === 'shuddha' ? '' : 'alt'}"><b>${SWARA_NAME[o]}</b> ${KIND[o]}</span>`).join('');
   const meta = r.isFree ? 'Every swara, every form — experiment freely'
     : [r.isThaat ? 'Thaat (parent scale)' : r.thaat + ' thaat', inf.jati, r.time].filter(Boolean).join(' · ');
   const facts = [];
