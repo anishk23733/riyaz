@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v23';
+const CACHE = 'riyaz-v24';
 
 const ASSETS = [
   './',
@@ -18,6 +18,11 @@ const ASSETS = [
       'C3', 'Cs3', 'D3', 'Ds3', 'E3', 'F3', 'Fs3', 'G3', 'Gs3', 'A3', 'As3', 'B3',
       'C4', 'Cs4', 'D4', 'Ds4', 'E4', 'F4', 'G4', 'Gs4', 'A4', 'As4', 'B4',
       'C5', 'Cs5', 'D5'].map(n => `harmonium/${n}.wav`),
+  'taals.js',
+  'tabla/samples.json',
+  ...['m_na1','m_na2','m_tin1','m_tin2','m_tin3','m_tun1','m_tun2','m_tun3','m_te1','m_te2','m_te3','m_te4','m_re1',
+      'm_ge1','m_ge2','m_ge3','m_ge4','m_ge5','m_ge6','m_ge7','m_ge8','m_ke1','m_ke2','m_ke3',
+      's_dha1','s_dhin1','s_ge1','s_ke1','s_na1','s_na2','s_re1','s_te1','s_tin1','s_tun1'].map(n => `tabla/${n}.wav`),
   'tanpura/samples.json',
   ...['Cs2', 'Gs2', 'As2', 'Cs3'].map(n => `tanpura/${n}.wav`),
 ];

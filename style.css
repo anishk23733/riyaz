@@ -414,6 +414,7 @@ button:focus:not(:focus-visible) { outline: none; }
 .settings-body { flex: 1; display: flex; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .col { flex: 1; padding: 14px 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .col + .col { border-left: 1px solid #26262b; }
+.col > * { flex-shrink: 0; } /* never squash controls; the settings screen scrolls instead */
 .col.narrow { flex: 0 0 380px; }
 .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
 .row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
@@ -642,3 +643,39 @@ button:focus:not(:focus-visible) { outline: none; }
 .navbar.np .nav-btn, .navbar.np .minimap-wrap { display: none; }
 .np-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .np-tokens { font-size: 19px; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- tabla button ---------- */
+.center-btns { display: flex; gap: 8px; align-items: center; }
+.tabla-btn {
+  height: 40px;
+  min-width: 132px;
+  padding: 0 14px 0 12px;
+  border-radius: 20px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.tabla-idle, .tabla-live { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.tabla-btn.playing { background: #26221b; border-color: var(--accent); }
+.tabla-btn.on-sam { transform: scale(1.04); }
+.tabla-count { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); min-width: 34px; text-align: right; }
+.tabla-bol { min-width: 58px; text-align: left; color: var(--text); }
+.tabla-mark {
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.tabla-mark.sam { background: var(--accent); color: var(--accent-ink); }
+.tabla-mark.tali { background: #34343a; color: var(--text); }
+.tabla-mark.khali { border: 1.5px dashed var(--muted); color: var(--muted); }
+.chips.wrap { flex-wrap: wrap; }
+.chips.wrap button { flex: 0 0 auto; padding: 0 12px; }

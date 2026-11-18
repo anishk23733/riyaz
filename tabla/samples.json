@@ -1,0 +1,271 @@
+[
+ {
+  "file": "m_na1.wav",
+  "cls": "na",
+  "drum": "d",
+  "dur": 0.72,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_na2.wav",
+  "cls": "na",
+  "drum": "d",
+  "dur": 0.236,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0,
+  "accent": 1
+ },
+ {
+  "file": "m_tin1.wav",
+  "cls": "tin",
+  "drum": "d",
+  "dur": 1.112,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_tin2.wav",
+  "cls": "tin",
+  "drum": "d",
+  "dur": 1.4,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_tin3.wav",
+  "cls": "tin",
+  "drum": "d",
+  "dur": 1.236,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_tun1.wav",
+  "cls": "tun",
+  "drum": "d",
+  "dur": 1.9,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_tun2.wav",
+  "cls": "tun",
+  "drum": "d",
+  "dur": 1.9,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_tun3.wav",
+  "cls": "tun",
+  "drum": "d",
+  "dur": 1.9,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_te1.wav",
+  "cls": "te",
+  "drum": "d",
+  "dur": 0.177,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_te2.wav",
+  "cls": "te",
+  "drum": "d",
+  "dur": 0.332,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_te3.wav",
+  "cls": "te",
+  "drum": "d",
+  "dur": 0.289,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_te4.wav",
+  "cls": "te",
+  "drum": "d",
+  "dur": 0.153,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_re1.wav",
+  "cls": "re",
+  "drum": "d",
+  "dur": 0.274,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "hz": 280.0
+ },
+ {
+  "file": "m_ge1.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 2.4,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "fall"
+ },
+ {
+  "file": "m_ge2.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 2.387,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "fall"
+ },
+ {
+  "file": "m_ge3.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 2.137,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "fall"
+ },
+ {
+  "file": "m_ge4.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 2.4,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "flat"
+ },
+ {
+  "file": "m_ge5.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 2.4,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "flat"
+ },
+ {
+  "file": "m_ge6.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 0.588,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "short"
+ },
+ {
+  "file": "m_ge7.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 0.796,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "short"
+ },
+ {
+  "file": "m_ge8.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 0.582,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162",
+  "ge": "short"
+ },
+ {
+  "file": "m_ke1.wav",
+  "cls": "ke",
+  "drum": "b",
+  "dur": 0.043,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162"
+ },
+ {
+  "file": "m_ke2.wav",
+  "cls": "ke",
+  "drum": "b",
+  "dur": 0.044,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162"
+ },
+ {
+  "file": "m_ke3.wav",
+  "cls": "ke",
+  "drum": "b",
+  "dur": 0.076,
+  "src": "CC0 \u2014 mmiron, Freesound pack 8162"
+ },
+ {
+  "file": "s_dha1.wav",
+  "cls": "dha",
+  "drum": "db",
+  "dur": 1.4,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ },
+ {
+  "file": "s_dhin1.wav",
+  "cls": "dhin",
+  "drum": "db",
+  "dur": 1.4,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ },
+ {
+  "file": "s_ge1.wav",
+  "cls": "ge",
+  "drum": "b",
+  "dur": 1.497,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "ge": "flat"
+ },
+ {
+  "file": "s_ke1.wav",
+  "cls": "ke",
+  "drum": "b",
+  "dur": 0.1,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571"
+ },
+ {
+  "file": "s_na1.wav",
+  "cls": "na",
+  "drum": "d",
+  "dur": 0.904,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ },
+ {
+  "file": "s_na2.wav",
+  "cls": "na",
+  "drum": "d",
+  "dur": 1.0,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ },
+ {
+  "file": "s_re1.wav",
+  "cls": "re",
+  "drum": "d",
+  "dur": 0.1,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ },
+ {
+  "file": "s_te1.wav",
+  "cls": "te",
+  "drum": "d",
+  "dur": 0.1,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ },
+ {
+  "file": "s_tin1.wav",
+  "cls": "tin",
+  "drum": "d",
+  "dur": 1.4,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ },
+ {
+  "file": "s_tun1.wav",
+  "cls": "tun",
+  "drum": "d",
+  "dur": 1.9,
+  "src": "Sampling+ 1.0 \u2014 msarkar, Freesound pack 3571",
+  "hz": 262.2
+ }
+]

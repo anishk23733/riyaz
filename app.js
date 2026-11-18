@@ -58,7 +58,7 @@ function ragaInfo(r) {
 // =====================================================================
 // Settings (remembered)
 // =====================================================================
-const DEFAULTS = { saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', second: 'pull', first: null, extra: null, bpm: 60, balance: 60 };
+const DEFAULTS = { taal: 'Teentaal', tablaBpm: 80, tablaVol: 0.8, saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', second: 'pull', first: null, extra: null, bpm: 60, balance: 60 };
 const S = Object.assign({}, DEFAULTS, (() => { try { return JSON.parse(localStorage.getItem('riyaz') || '{}'); } catch { return {}; } })());
 if (!ALL_RAGAS.has(S.raga)) S.raga = DEFAULTS.raga;
 if (S.first === 'auto') S.first = null;
@@ -73,7 +73,7 @@ const mtof = m => 440 * Math.pow(2, (m - 69) / 12 + S.cents / 1200);
 // =====================================================================
 // Audio engine
 // =====================================================================
-let ctx = null, master, notesBus, tanpuraBus, reedWave, reedBus, noiseBuf;
+let ctx = null, master, notesBus, tanpuraBus, tablaBus, reedWave, reedBus, noiseBuf;
 
 function audio() {
   if (ctx && ctx.state !== 'closed') return ctx;
@@ -89,6 +89,7 @@ function audio() {
   master = ctx.createGain(); master.gain.value = 0.8; master.connect(clip);
   notesBus = ctx.createGain(); notesBus.connect(master);
   tanpuraBus = ctx.createGain(); tanpuraBus.connect(master);
+  tablaBus = ctx.createGain(); tablaBus.gain.value = S.tablaVol; tablaBus.connect(master);
   // --- Harmonium model ---
   // Free reeds vibrate like a narrow pulse: buzzy, with notches in the spectrum.
   const N = 80, real = new Float32Array(N), imag = new Float32Array(N), duty = 0.23;
@@ -130,7 +131,8 @@ function unlock() {
   }).catch(() => rebuildAudio());
 }
 function rebuildAudio() {
-  const tanpuraWasOn = Tanpura.playing;
+  const tanpuraWasOn = Tanpura.playing, tablaWasOn = Tabla.playing;
+  if (tablaWasOn) Tabla.stop();
   if (tanpuraWasOn) Tanpura.stop();
   if (typeof releaseAll === 'function') releaseAll();
   const old = ctx;
@@ -140,6 +142,8 @@ function rebuildAudio() {
   Tanpura.cache.clear();
   decodeHarmonium();
   decodeTanpura();
+  decodeTabla();
+  if (tablaWasOn) Tabla.start();
   if (tanpuraWasOn) Tanpura.start();
 }
 let lastClock = -1, stalls = 0;
@@ -1131,6 +1135,201 @@ function updateHeader() {
   $('ragaName').textContent = r.isThaat ? r.thaat : r.name;
   $('ragaThaat').textContent = r.isFree ? 'all 12 swaras' : r.isThaat ? 'thaat scale' : r.thaat + ' thaat';
 }
+// =====================================================================
+// Tabla: plays the theka of the chosen taal (taals.js) from recorded strokes.
+// Samples: mmiron "tabla bols" (Freesound pack 8162, CC0) and msarkar "Tabla"
+// (Freesound pack 3571, Sampling+ 1.0 — non-commercial sharing with credit).
+// The dayan (right drum) is retuned to your Sa; the bayan (left drum) is never retuned.
+// =====================================================================
+const Tab = { list: [], raw: new Map(), ready: false, gen: 0 };
+async function loadTabla() {
+  try {
+    const list = await (await fetch('tabla/samples.json')).json();
+    await Promise.all(list.map(async s => Tab.raw.set(s.file, await (await fetch('tabla/' + s.file)).arrayBuffer())));
+    Tab.list = list;
+    await decodeTabla();
+  } catch (e) { console.warn('Tabla samples unavailable', e); }
+}
+async function decodeTabla() {
+  if (!Tab.list.length) return;
+  Tab.ready = false;
+  const c = audio(), gen = ++Tab.gen;
+  await Promise.all(Tab.list.map(s => new Promise((ok, fail) =>
+    c.decodeAudioData(Tab.raw.get(s.file).slice(0), b => { if (gen === Tab.gen) s.buf = b; ok(); }, fail))));
+  if (gen === Tab.gen) Tab.ready = Tab.list.every(s => s.buf);
+}
+
+// Mix level of each stroke type (the recordings are loudness-matched, so this sets the balance).
+const TABLA_CLASS_GAIN = { na: 1, tin: 0.95, tun: 0.85, te: 0.55, re: 0.45, ge: 1.05, ke: 0.5, dha: 1.1, dhin: 1.1 };
+
+// Retune a dayan recording (tuned to `hz`) to the player's Sa — or to Pa when Sa would need
+// a big shift (tabla players do this too). Returns semitones of shift.
+function dayanShift(hz) {
+  const near = target => { const s = 12 * Math.log2(target / hz); return s - 12 * Math.round(s / 12); };
+  const saHz = mtof(saMidi());
+  const sSa = near(saHz), sPa = near(saHz * Math.pow(2, 7 / 12));
+  return Math.abs(sSa) <= 4.5 || Math.abs(sSa) <= Math.abs(sPa) ? sSa : sPa;
+}
+
+const Tabla = {
+  playing: false, timer: null, raf: 0, matra: 0, nextTime: 0, walk: 0,
+  queue: [], last: { d: null, b: null }, recent: {},
+
+  taal() { return TAALS.find(t => t.name === S.taal) || TAALS[0]; },
+
+  // Pick a recording of a stroke type, never the same take twice in a row.
+  pick(cls, ok = () => true) {
+    const c = Tab.list.filter(s => s.cls === cls && s.buf && ok(s)); // only strokes that have loaded
+    if (!c.length) return null;
+    const pool = c.length > 1 ? c.filter(s => s !== this.recent[cls]) : c;
+    const s = pool[Math.floor(Math.random() * pool.length)];
+    this.recent[cls] = s;
+    return s;
+  },
+
+  // Play one recording. drum: 'd' dayan, 'b' bayan, 'db' both (a full two-handed stroke).
+  play(s, t, vel) {
+    const src = ctx.createBufferSource();
+    src.buffer = s.buf;
+    const shift = s.drum === 'b' ? 0 : dayanShift(s.hz);
+    src.playbackRate.value = Math.pow(2, shift / 12);
+    const g = ctx.createGain();
+    g.gain.value = vel * (TABLA_CLASS_GAIN[s.cls] || 1);
+    const tone = ctx.createBiquadFilter(); // harder strokes sound a little brighter
+    tone.type = 'highshelf'; tone.frequency.value = 3000; tone.gain.value = (vel - 1) * 8;
+    src.connect(tone).connect(g).connect(tablaBus);
+    // Let strokes ring into each other, but a new stroke on a drum damps its previous one
+    // (closed strokes damp hard; Ke cuts off a ringing Ge, as on a real bayan).
+    const drums = s.drum === 'db' ? ['d', 'b'] : [s.drum];
+    for (const dr of drums) {
+      const prev = this.last[dr];
+      if (prev) {
+        const closed = s.cls === 'te' || s.cls === 're' || s.cls === 'ke';
+        prev.g.gain.setTargetAtTime(0, t, closed ? 0.012 : dr === 'b' ? 0.04 : 0.03);
+        prev.src.stop(t + 0.5);
+      }
+      this.last[dr] = { src, g };
+    }
+    src.start(t);
+  },
+
+  // One bol (e.g. Dha) at time t.
+  stroke(st, t, vel, beat, first) {
+    if (!st) return;
+    // Dha / Dhin: use a real two-handed recording when the dayan needs only a small retune,
+    // otherwise layer a retuned dayan stroke over an untouched bayan stroke.
+    const combo = st.b === 'ge' ? (st.d === 'na' ? 'dha' : st.d === 'tin' ? 'dhin' : null) : null;
+    if (combo && Math.random() < 0.5) {
+      const s = this.pick(combo, x => Math.abs(dayanShift(x.hz)) <= 2.5);
+      if (s) { this.play(s, t, vel); return; }
+    }
+    if (st.d) { const s = this.pick(st.d); if (s) this.play(s, t, vel); }
+    if (st.b) {
+      // Choose the bayan Ge by context: long falling/steady Ge on strong beats and slow lay,
+      // short Ge in fast lay.
+      const want = beat < 0.3 ? ['short'] : first ? ['fall', 'flat'] : ['fall', 'flat', 'short'];
+      const s = this.pick(st.b, x => st.b !== 'ge' || want.includes(x.ge));
+      // bayan lands a hair before/after the dayan, like real hands
+      if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * (st.accent ? 1.15 : 1));
+    }
+  },
+
+  scheduleMatra(i, t, beat) {
+    const tl = this.taal(), entry = tl.theka[i];
+    const vb = vibhagOf(tl, i);
+    // Accents: sam strongest, first beat of each tali vibhag a little stronger, khali lighter.
+    let acc = 1;
+    if (vb.first) {
+      if (i === 0 && !tl.samIsKhali) acc = 1.35;
+      else if (String(vb.mark) === '0') acc = 0.85;
+      else acc = 1.15;
+    }
+    // Human timing: a slow drift (±8 ms) plus a little per-stroke jitter; sam stays tight.
+    this.walk = Math.max(-0.008, Math.min(0.008, this.walk * 0.9 + (Math.random() - 0.5) * 0.004));
+    const parts = splitMatra(entry);
+    const n = parts.length;
+    // Fast clusters (TiRaKiTa) stay tight at slow tempo, ending on the next matra.
+    const sub = n > 2 && beat / n > 0.11 ? 0.11 : beat / n;
+    const clusterStart = n > 2 ? beat - sub * n : 0;
+    parts.forEach((p, k) => {
+      const at = n > 2 ? clusterStart + k * sub : p.frac * beat;
+      const jitter = i === 0 && k === 0 ? 0 : Math.max(-0.008, Math.min(0.008, this.walk + (Math.random() - 0.5) * 0.006));
+      const v = acc * (k === 0 ? 1 : n > 2 ? 0.7 : 0.85) * (0.94 + Math.random() * 0.12);
+      this.stroke(p.stroke, t + at + jitter, v, beat, vb.first && k === 0);
+    });
+    this.queue.push({ time: t, matra: i, entry, mark: vb.first ? vb.mark : null, khali: String(tl.marks[vb.v]) === '0' });
+  },
+
+  tick() {
+    if (!this.playing || !ctx) return;
+    const tl = this.taal(), beat = 60 / S.tablaBpm;
+    if (this.matra >= tl.matras) this.matra = 0;
+    while (this.nextTime < ctx.currentTime + 0.15) {
+      this.scheduleMatra(this.matra, this.nextTime, beat);
+      this.matra = (this.matra + 1) % tl.matras;
+      this.nextTime += beat;
+    }
+  },
+
+  start() {
+    unlock();
+    this.playing = true;
+    this.matra = 0;
+    this.queue = [];
+    this.walk = 0;
+    this.nextTime = ctx.currentTime + 0.12;
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.tick(), 25);
+    this.tick();
+    cancelAnimationFrame(this.raf);
+    const frame = () => { this.showBeat(); if (this.playing) this.raf = requestAnimationFrame(frame); };
+    this.raf = requestAnimationFrame(frame);
+    updateTablaUI();
+  },
+  stop() {
+    this.playing = false;
+    clearInterval(this.timer);
+    cancelAnimationFrame(this.raf);
+    const t = ctx ? ctx.currentTime : 0;
+    for (const k of ['d', 'b']) {
+      const v = this.last[k];
+      if (v) { v.g.gain.setTargetAtTime(0, t, 0.08); v.src.stop(t + 0.6); }
+      this.last[k] = null;
+    }
+    this.queue = [];
+    updateTablaUI();
+  },
+  toggle() { this.playing ? this.stop() : this.start(); },
+  // Changing taal while playing: restart cleanly on sam.
+  restart() { if (this.playing) { this.stop(); this.start(); } },
+
+  // Show the matra being heard right now (accounting for audio output latency).
+  showBeat() {
+    const now = ctx.currentTime - (ctx.outputLatency || 0);
+    let cur = null;
+    while (this.queue.length && this.queue[0].time <= now) cur = this.queue.shift();
+    if (!cur) return;
+    const tl = this.taal();
+    $('tablaCount').textContent = `${cur.matra + 1}/${tl.matras}`;
+    $('tablaBol').textContent = cur.entry === '-' ? '·' : cur.entry;
+    const mk = $('tablaMark');
+    mk.textContent = cur.mark == null ? '' : String(cur.mark);
+    mk.className = 'tabla-mark' + (cur.mark == null ? '' : String(cur.mark) === 'X' ? ' sam' : String(cur.mark) === '0' ? ' khali' : ' tali');
+    const btn = $('tablaBtn');
+    btn.classList.toggle('on-sam', cur.matra === 0);
+  },
+};
+
+function updateTablaUI() {
+  const btn = $('tablaBtn');
+  btn.setAttribute('aria-pressed', String(Tabla.playing));
+  btn.classList.toggle('playing', Tabla.playing);
+  $('tablaIdle').hidden = Tabla.playing;
+  $('tablaLive').hidden = !Tabla.playing;
+  if (!Tabla.playing) btn.classList.remove('on-sam');
+  $('tablaIdleName').textContent = Tabla.taal().name;
+}
+
 function updateTanpuraUI() {
   $('tanpuraBtn').setAttribute('aria-pressed', String(Tanpura.playing));
   $('tanpuraPlay').classList.toggle('playing', Tanpura.playing);
@@ -1138,6 +1337,7 @@ function updateTanpuraUI() {
   $('tanpuraStatus').textContent = Tanpura.playing ? 'Tanpura playing' : 'Tanpura';
 }
 $('tanpuraBtn').onclick = () => Tanpura.toggle();
+$('tablaBtn').onclick = () => Tabla.toggle();
 $('tanpuraPlay').onclick = () => Tanpura.toggle();
 
 function flashPluck(i) {
@@ -1450,7 +1650,26 @@ function changedTuning() {
   Tanpura.retune();
 }
 
+// Tabla settings
+function renderTablaSettings() {
+  $('taalChips').innerHTML = TAALS.map(t =>
+    `<button data-taal="${t.name}" class="${t.name === Tabla.taal().name ? 'sel' : ''}">${t.name} <span class="muted small">${t.matras}</span></button>`).join('');
+  $('taalChips').querySelectorAll('button').forEach(b => {
+    b.onclick = () => { S.taal = b.dataset.taal; save(); renderTablaSettings(); updateTablaUI(); Tabla.restart(); };
+  });
+  $('tablaBpmVal').textContent = S.tablaBpm;
+  $('tablaVol').value = Math.round(S.tablaVol * 100);
+}
+document.querySelectorAll('[data-tbpm]').forEach(b => {
+  b.onclick = () => { S.tablaBpm = clamp(S.tablaBpm + Number(b.dataset.tbpm), 20, 400); save(); renderTablaSettings(); };
+});
+$('tablaVol').addEventListener('input', e => {
+  S.tablaVol = Number(e.target.value) / 100; save();
+  if (tablaBus) tablaBus.gain.value = S.tablaVol;
+});
+
 function renderSettings() {
+  renderTablaSettings();
   [...saGrid.children].forEach((b, i) => b.classList.toggle('sel', i === S.saPc));
   $('saOctLabel').textContent = NOTE_NAMES[S.saPc] + S.saOct;
   $('saHz').textContent = mtof(saMidi()).toFixed(1) + ' Hz';
@@ -1515,6 +1734,8 @@ function renderPluckChips() {
 audio();
 loadHarmonium();
 loadTanpura();
+loadTabla();
+updateTablaUI();
 buildPads();
 renderSettings();
 updateTanpuraUI();

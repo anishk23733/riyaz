@@ -9,6 +9,7 @@ Open it at **https://anishk23733.github.io/riyaz/** — on iPhone, open in Safar
 - **Pads** show only the chosen raga's swaras, from mandra to taar (plus an octave). Ragas that use both forms of a swara (m/M, n/N…) get a split pad: higher form on top.
 - **Meend**: slide between pads; the pitch glides along the raga's notes and locks exactly onto a note when you slow down. Holding a note and pressing any other pad pulls the held note there and back (Settings can make the second finger play its own note instead). Quick taps are kept audible for fast taans.
 - **Tanpura**: real recorded string plucks, pitch-shifted exactly to your Sa, strings set from the raga (changeable). A generated tanpura stands in while the recordings load.
+- **Tabla**: plays the theka of the chosen taal (Teentaal, Jhaptaal, Ektaal, Rupak, Keherwa, Dadra, Jhoomra, Deepchandi, Tilwada) from recorded strokes, with the dayan tuned to your Sa; the top bar shows the matra, bol and sam/tali/khali mark. Theka data lives in `taals.js`.
 - **Raga browser**: ragas grouped by thaat, with aaroh, avaroh, pakad, key phrases, rules, vadi/samvadi. Data lives in `ragas.js` — edit freely. Entries marked `check: true` were written from memory and are worth verifying.
 
 Notation: lowercase = komal (and `m` = shuddh Ma), uppercase = shuddha (and `M` = tivra Ma); dot below = mandra, dot above = taar.
@@ -31,3 +32,12 @@ Tanpura samples: single string plucks recorded by luckylittleraven —
 For this app each pluck was trimmed, cleaned of sympathetic-string ringing and hiss between its harmonics,
 resampled to 32 kHz mono, loudness-matched and faded out; its exact pitch was measured from its harmonics
 so it can be retuned precisely (files in `tanpura/`).
+
+Tabla samples (files in `tabla/`; each pluck trimmed, faded, loudness-matched, dayan tuning measured):
+- `m_*.wav`: "tabla bols" by mmiron — [Freesound pack 8162](https://freesound.org/people/mmiron/packs/8162/) (CC0).
+- `s_*.wav`: "Tabla" by msarkar — [Freesound pack 3571](https://freesound.org/people/msarkar/packs/3571/),
+  [Sampling+ 1.0](https://creativecommons.org/licenses/sampling+/1.0/). **These files may be shared only non-commercially, with credit**
+  (they are not covered by the code's license).
+
+Theka data compiled from [Ancient-Future](https://www.ancient-future.com/theka.html),
+[Ragajunglism](https://ragajunglism.org/ragas/talas) and Wikipedia's "Tala (music)".
