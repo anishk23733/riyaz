@@ -58,10 +58,14 @@ function ragaInfo(r) {
 // =====================================================================
 // Settings (remembered)
 // =====================================================================
-const DEFAULTS = { taal: 'Teentaal', tablaBpm: 80, tablaVol: 0.8, saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', second: 'pull', first: null, extra: null, bpm: 60, balance: 60 };
+const DEFAULTS = { taal: 'Teentaal', tablaVol: 0.8, saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', second: 'pull', first: null, extra: null, bpm: 80, balance: 60 };
 const S = Object.assign({}, DEFAULTS, (() => { try { return JSON.parse(localStorage.getItem('riyaz') || '{}'); } catch { return {}; } })());
 if (!ALL_RAGAS.has(S.raga)) S.raga = DEFAULTS.raga;
 if (S.first === 'auto') S.first = null;
+// One shared tempo for tabla and tanpura (older versions stored a separate tabla tempo)
+if (typeof S.tablaBpm === 'number') { S.bpm = S.tablaBpm; delete S.tablaBpm; }
+if (typeof S.bpm !== 'number' || S.bpm === 60 && !localStorage.getItem('riyaz-tempo')) S.bpm = 80;
+try { localStorage.setItem('riyaz-tempo', '1'); } catch {}
 if (S.extra === 'off' && !localStorage.getItem('riyaz-v2')) S.extra = null;
 try { localStorage.setItem('riyaz-v2', '1'); } catch {}
 const save = () => { try { localStorage.setItem('riyaz', JSON.stringify(S)); } catch {} };
@@ -533,6 +537,13 @@ function ragaTanpura(r) {
 const STRING_ORDER = ['P', 'm', 'M', 'd', 'D', 'N', 'G'];
 const STRING_SEMI = { P: -5, m: -7, M: -6, N: -1, d: -4, D: -3, G: -8 }; // relative to madhya Sa, in mandra
 
+// The tanpura plucks on the shared beat: once per beat at slow/medium tempo, every 2nd or
+// 3rd beat when fast, so it never sounds frantic (plucks stay at least ~0.55 s apart).
+function pluckSpacing() {
+  const beat = 60 / S.bpm;
+  return beat * Math.max(1, Math.ceil(0.55 / beat - 1e-9));
+}
+
 const Tanpura = {
   playing: false, timer: null, nextTime: 0, idx: 0, gen: 0,
   cache: new Map(), last: new Map(),
@@ -572,7 +583,8 @@ const Tanpura = {
     await this.prepare();
     if (!this.playing) return;
     this.idx = 0;
-    this.nextTime = ctx.currentTime + 0.08;
+    // in step with the tabla if it's already playing
+    this.nextTime = Tabla.playing && Tabla.nextTime > ctx.currentTime ? Tabla.nextTime : ctx.currentTime + 0.08;
     clearInterval(this.timer);
     this.timer = setInterval(() => this.tick(), 40);
     this.tick();
@@ -594,7 +606,7 @@ const Tanpura = {
     if (this.playing) await this.prepare();
   },
   tick() {
-    const list = this.strings(), beat = 60 / S.bpm;
+    const list = this.strings(), beat = pluckSpacing();
     if (this.idx >= list.length) this.idx = 0;
     while (this.nextTime < ctx.currentTime + 0.2) {
       const i = this.idx;
@@ -1262,7 +1274,7 @@ const Tabla = {
 
   tick() {
     if (!this.playing || !ctx) return;
-    const tl = this.taal(), beat = 60 / S.tablaBpm;
+    const tl = this.taal(), beat = 60 / S.bpm;
     if (this.matra >= tl.matras) this.matra = 0;
     while (this.nextTime < ctx.currentTime + 0.15) {
       this.scheduleMatra(this.matra, this.nextTime, beat);
@@ -1277,7 +1289,8 @@ const Tabla = {
     this.matra = 0;
     this.queue = [];
     this.walk = 0;
-    this.nextTime = ctx.currentTime + 0.12;
+    // in step with the tanpura if it's already playing: sam lands on its next pluck
+    this.nextTime = Tanpura.playing && Tanpura.nextTime > ctx.currentTime + 0.02 ? Tanpura.nextTime : ctx.currentTime + 0.12;
     clearInterval(this.timer);
     this.timer = setInterval(() => this.tick(), 25);
     this.tick();
@@ -1640,7 +1653,7 @@ function renderStringChips() {
   $('extraChips').querySelectorAll('button').forEach(b => { b.onclick = () => { S.extra = b.dataset.extra === def.extra ? null : b.dataset.extra; save(); renderSettings(); Tanpura.retune(); }; });
 }
 document.querySelectorAll('[data-bpm]').forEach(b => {
-  b.onclick = () => { S.bpm = clamp(S.bpm + Number(b.dataset.bpm), 30, 140); save(); renderSettings(); };
+  b.onclick = () => { S.bpm = clamp(S.bpm + Number(b.dataset.bpm), 20, 400); save(); renderSettings(); keepInStep(); };
 });
 $('balance').addEventListener('input', e => { S.balance = Number(e.target.value); save(); applyBalance(); });
 
@@ -1651,18 +1664,24 @@ function changedTuning() {
 }
 
 // Tabla settings
+// After a tempo change, put the tanpura's next pluck back on the tabla's beat grid.
+function keepInStep() {
+  if (!Tabla.playing || !Tanpura.playing) return;
+  const b = 60 / S.bpm;
+  let t = Tabla.nextTime;
+  while (t < Tanpura.nextTime - 0.001) t += b;
+  Tanpura.nextTime = t;
+}
+
 function renderTablaSettings() {
   $('taalChips').innerHTML = TAALS.map(t =>
     `<button data-taal="${t.name}" class="${t.name === Tabla.taal().name ? 'sel' : ''}">${t.name} <span class="muted small">${t.matras}</span></button>`).join('');
   $('taalChips').querySelectorAll('button').forEach(b => {
     b.onclick = () => { S.taal = b.dataset.taal; save(); renderTablaSettings(); updateTablaUI(); Tabla.restart(); };
   });
-  $('tablaBpmVal').textContent = S.tablaBpm;
   $('tablaVol').value = Math.round(S.tablaVol * 100);
 }
-document.querySelectorAll('[data-tbpm]').forEach(b => {
-  b.onclick = () => { S.tablaBpm = clamp(S.tablaBpm + Number(b.dataset.tbpm), 20, 400); save(); renderTablaSettings(); };
-});
+
 $('tablaVol').addEventListener('input', e => {
   S.tablaVol = Number(e.target.value) / 100; save();
   if (tablaBus) tablaBus.gain.value = S.tablaVol;
