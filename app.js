@@ -109,10 +109,9 @@ function harmoniumVoice(midi) {
   o1.start(t); o2.start(t);
   let stopped = false;
   return {
-    setPitch(m, smooth) {
+    setPitch(m, tc) {
       if (stopped) return;
       const tt = c.currentTime, ff = mtof(m);
-      const tc = smooth ? 0.02 : 0.004;
       o1.frequency.setTargetAtTime(ff, tt, tc);
       o2.frequency.setTargetAtTime(ff, tt, tc);
       lp.frequency.setTargetAtTime(Math.min(5200, ff * 14), tt, 0.03);
@@ -348,21 +347,22 @@ function slideBy(nPads) {
   applyScroll(true);
 }
 
-// ---------- pitch from horizontal position ----------
+// ---------- which pad is under the finger ----------
+// The note you hear is always the pad under your finger. A small dead zone at pad edges
+// (hysteresis) stops it flickering between two notes when you rest on a boundary.
 const padMidi = i => saMidi() + pads[i].semi;
-function pitchAt(p) {
+const EDGE = 0.12; // fraction of a pad you must cross past the edge before switching
+function padAt(p, current) {
   const N = pads.length;
-  if (S.slide === 'steps') {
-    const i = clamp(Math.floor(p), 0, N - 1);
-    return { midi: padMidi(i), idx: i };
-  }
-  // Meend: each pad's middle is a "hold zone" (exact note); pitch glides between pads.
-  const q = p - 0.5, i = Math.floor(q), t = q - i, HOLD = 0.28;
-  if (i < 0) return { midi: padMidi(0), idx: 0 };
-  if (i >= N - 1) return { midi: padMidi(N - 1), idx: N - 1 };
-  let s = t <= HOLD ? 0 : t >= 1 - HOLD ? 1 : (t - HOLD) / (1 - 2 * HOLD);
-  s = s * s * (3 - 2 * s);
-  return { midi: padMidi(i) + (padMidi(i + 1) - padMidi(i)) * s, idx: s < 0.5 ? i : i + 1 };
+  if (current >= 0 && p >= current - EDGE && p < current + 1 + EDGE) return current;
+  return clamp(Math.floor(p), 0, N - 1);
+}
+
+// Meend: the pitch always travels to the next raga note and lands exactly on it —
+// it never rests between notes. Slow slide = slow meend, quick wiggle = crisp murki.
+function glideTime(msSinceLastNote) {
+  if (S.slide === 'steps') return 0.003;
+  return clamp(msSinceLastNote / 1000 * 0.45, 0.03, 0.22) / 3; // time constant ≈ 1/3 of glide
 }
 
 function setHeld(idx, delta) {
@@ -383,12 +383,10 @@ stage.addEventListener('pointerdown', e => {
   unlock();
   stageLeft = stage.getBoundingClientRect().left;
   const p = (e.clientX - stageLeft + scrollX) / step;
-  const tch = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: performance.now(), voice: null, idx: -1, shift: 0 };
+  const tch = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: performance.now(), lastChange: performance.now(), voice: null, idx: -1 };
   touches.set(e.pointerId, tch);
   if (scrolling) { scrolling.ids.add(e.pointerId); return; }
-  // Start exactly on the touched pad's note; slides bend from there.
-  const padIdx = clamp(Math.floor(p), 0, pads.length - 1);
-  tch.shift = (padIdx + 0.5) - p;
+  const padIdx = padAt(p, -1);
   tch.idx = padIdx;
   tch.voice = harmoniumVoice(padMidi(padIdx));
   setHeld(padIdx, 1);
@@ -423,10 +421,13 @@ window.addEventListener('pointermove', e => {
   }
 
   if (!tch.voice) return;
-  const p = (e.clientX - stageLeft + scrollX) / step + tch.shift;
-  const { midi, idx } = pitchAt(p);
-  tch.voice.setPitch(midi, S.slide === 'glide');
-  if (idx !== tch.idx) { setHeld(tch.idx, -1); setHeld(idx, 1); tch.idx = idx; }
+  const p = (e.clientX - stageLeft + scrollX) / step;
+  const idx = padAt(p, tch.idx);
+  if (idx === tch.idx) return;
+  const now = performance.now();
+  tch.voice.setPitch(padMidi(idx), glideTime(now - tch.lastChange));
+  tch.lastChange = now;
+  setHeld(tch.idx, -1); setHeld(idx, 1); tch.idx = idx;
 });
 
 function endTouch(e) {
@@ -617,7 +618,7 @@ function togglePreview(r) {
     if (i >= seq.length) { stopPreview(); return; }
     const t = seq[i++];
     const midi = saMidi() + t.oct * 12 + OFF[t.l];
-    if (preview.voice) preview.voice.setPitch(midi, true);
+    if (preview.voice) preview.voice.setPitch(midi, 0.025);
     else preview.voice = harmoniumVoice(midi);
     preview.timer = setTimeout(stepFn, i === Math.ceil(seq.length / 2) ? 700 : 420);
   };
