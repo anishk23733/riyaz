@@ -1055,6 +1055,41 @@ function renderPluckChips() {
 }
 
 // =====================================================================
+// "Add to Home Screen" prompt
+// Shown every time the page is opened in a browser (as asked), never in the installed app.
+// iPhone/iPad can only install via Safari's Share menu, so there we show the steps;
+// browsers that support it (Android, desktop Chrome) get a real one-click Install button.
+// =====================================================================
+(function installPrompt() {
+  const installed = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  if (installed) return;
+  const card = $('installCard'), btn = $('installBtn'), steps = $('installSteps');
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  const shareIcon = '<svg class="share-ico" width="15" height="17" viewBox="0 0 15 17" aria-label="Share"><path d="M7.5 1v10M4 4.5 7.5 1 11 4.5M3 7.5H1.5v8h12v-8H12" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferred = e;
+    steps.textContent = 'Full screen, on your home screen, and works offline.';
+    btn.hidden = false;
+    card.hidden = false;
+  });
+  btn.onclick = async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice.catch(() => {});
+    deferred = null;
+    card.hidden = true;
+  };
+  $('installClose').onclick = () => { card.hidden = true; };
+  window.addEventListener('appinstalled', () => { card.hidden = true; });
+  if (isIOS) {
+    steps.innerHTML = `Tap ${shareIcon} <b>Share</b> (or <b>⋯</b>), then <b>Add to Home Screen</b>. Full screen and works offline.`;
+    card.hidden = false;
+  }
+})();
+
+// =====================================================================
 // Start
 // =====================================================================
 audio();
