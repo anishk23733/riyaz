@@ -715,24 +715,29 @@ stage.addEventListener('pointerdown', e => {
   if (pads[idx].split) { tch.choice = tch.yHalf === 'hi' ? pads[idx].hi : pads[idx].lo; tch.choiceIdx = idx; }
   const off = variantOf(idx, tch);
   tch.off = off;
-  const host = S.second === 'pull' ? pullHost(tch) : null;
+  const host = S.second === 'pull' ? pullHost(tch, idx, off) : null;
   if (host) { startPull(tch, host, idx, off); return; }
   handOver();
   tch.voice = harmoniumVoice(offMidi(idx, off));
   showHeld(tch, elFor(idx, off));
 });
 
-// ---------- Pull (second finger) ----------
-// Holding a note and pressing another pad pulls the held note there with a meend (M held,
-// press P: M glides up to P); lifting that finger lets it glide gently back. A very quick tap
-// still completes the pull before returning. Only for a note held a moment (PULL_MIN_HOLD_MS),
-// so overlapping fingers in a fast taan still play separate notes.
+// ---------- Pull (second finger on a neighbouring note) ----------
+// Holding a note and pressing the pad right next to it pulls the held note there with a meend
+// (hold M, press P: M glides up to P); lifting that finger lets it glide gently back, and even a
+// very quick tap completes the pull. Pressing a pad further away plays it as its own note
+// (chords). Only for a note held a moment (PULL_MIN_HOLD_MS), so overlapping fingers in a fast
+// taan still play separate notes. If the held finger lets go first, the sound carries on at the
+// pulling finger's note instead of stopping.
 const PULL_MIN_HOLD_MS = 250, PULL_TC = 0.045, PULL_MIN_MS = 110, RELEASE_TC = 0.075;
-function pullHost(tch) {
+function pullHost(tch, idx, off) {
   let host = null;
   const now = performance.now();
   for (const t of touches.values()) {
     if (t === tch || !t.voice || t.puller || now - t.t0 < PULL_MIN_HOLD_MS) continue;
+    const dist = Math.abs(t.idx - idx);
+    const neighbour = dist === 1 || (dist === 0 && t.off !== off); // next pad, or other half of a split pad
+    if (!neighbour) continue;
     if (!host || t.t0 > host.t0) host = t;
   }
   return host;
@@ -900,7 +905,21 @@ function endTouch(e) {
   touches.delete(e.pointerId);
   clearTimeout(tch.settle);
   if (tch.puller) { endPull(tch); return; }
-  if (tch.pulls) { clearTimeout(tch.returnTimer); for (const p of tch.pulls) { p.host = null; showHeld(p, null); } tch.pulls = []; }
+  if (tch.pulls && tch.pulls.length) {
+    // the held finger let go while being pulled: the sound carries on at the pulling finger
+    clearTimeout(tch.returnTimer);
+    const heir = tch.pulls[tch.pulls.length - 1];
+    heir.puller = false; heir.host = null;
+    heir.voice = tch.voice; tch.voice = null;
+    heir.voice.setPitch(offMidi(heir.idx, heir.off), PULL_TC);
+    heir.locked = true; heir.lockP = heir.idx + 0.5;
+    heir.p0 = heir.lockP; heir.shift = 0; heir.hist = [];
+    heir.pulls = tch.pulls.filter(p => p !== heir);
+    for (const p of heir.pulls) p.host = heir;
+    tch.pulls = [];
+    showHeld(tch, null);
+    return;
+  }
   const age = performance.now() - tch.t0;
   if (tch.voice && age < MIN_NOTE_MS) {
     // short tap: keep it sounding (and lit) a little longer
