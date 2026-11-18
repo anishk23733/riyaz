@@ -61,6 +61,10 @@
           <span id="tablaBol" class="tabla-bol">Dha</span>
         </span>
       </button>
+      <button id="singBtn" class="tanpura-btn sing-btn" aria-pressed="false" aria-label="Sing: show your voice's pitch">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="6.2" y="1.8" width="5.6" height="9.4" rx="2.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.6 8.6a5.4 5.4 0 0 0 10.8 0M9 14v2.4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+        <span>Sing</span>
+      </button>
       </div>
       <div class="topbar-right">
       <button id="phrasesBtn" class="icon-btn" aria-label="Aaroh, avaroh, pakad and phrases">
@@ -76,6 +80,18 @@
       <div id="track"></div>
     </main>
 
+    <!-- Sing: your voice's pitch over the raga's swaras -->
+    <section id="singView" aria-label="Your pitch" hidden>
+      <canvas id="singCanvas"></canvas>
+      <div id="singRead" class="sing-read idle">
+        <span id="srSw" class="sr-sw">–</span>
+        <span id="srName" class="sr-name"></span>
+        <span class="sr-meter" aria-hidden="true"><span class="sr-mid"></span><span id="srNeedle" class="sr-needle"></span></span>
+        <span id="srCents" class="sr-cents"></span>
+        <span id="srHold" class="sr-hold"></span>
+      </div>
+    </section>
+
     <div id="phrasePanel" class="phrase-panel" hidden>
       <div class="phrase-head">
         <span id="phraseTitle" class="strong"></span>
@@ -88,6 +104,10 @@
     </div>
 
     <footer class="navbar">
+      <div class="sing-bar">
+        <span class="sing-level" aria-hidden="true"><span id="singLevel"></span></span>
+        <span id="singMsg" class="sing-msg"></span>
+      </div>
       <div id="nowPlaying" class="now-playing">
         <span id="npLabel" class="np-label"></span>
         <span id="npTokens" class="np-tokens"></span>
@@ -212,5 +232,7 @@
   <script src="ragas.js"></script>
   <script src="taals.js"></script>
   <script src="app.js"></script>
+  <script src="pitch.js"></script>
+  <script src="sing.js"></script>
 </body>
 </html>

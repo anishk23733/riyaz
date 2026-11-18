@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v31';
+const CACHE = 'riyaz-v32';
 
 const ASSETS = [
   './',
@@ -7,6 +7,8 @@ const ASSETS = [
   'style.css',
   'ragas.js',
   'app.js',
+  'pitch.js',
+  'sing.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',

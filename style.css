@@ -679,3 +679,52 @@ button:focus:not(:focus-visible) { outline: none; }
 .tabla-mark.khali { border: 1.5px dashed var(--muted); color: var(--muted); }
 .chips.wrap { flex-wrap: wrap; }
 .chips.wrap button { flex: 0 0 auto; padding: 0 12px; }
+
+/* ---------- sing: pitch trace ---------- */
+.sing-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+#singView {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  overflow: hidden;
+  touch-action: none;
+}
+#singCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sing-read {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 160px;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.sing-read.idle { opacity: .35; }
+.sr-sw { font-size: 52px; font-weight: 600; line-height: 1.1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.sing-read.off .sr-sw, .sing-read.off .sr-name { color: #ff6b5e; }
+.sr-name { font-size: 13px; color: var(--muted); min-height: 16px; }
+.sr-meter { position: relative; width: 100%; max-width: 130px; height: 6px; margin-top: 6px; border-radius: 3px; background: var(--surface-3); }
+.sr-mid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--line-2); }
+.sr-needle { position: absolute; left: 50%; top: -4px; width: 4px; height: 14px; margin-left: -2px; border-radius: 2px; background: var(--text); }
+.sr-cents { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; min-height: 19px; }
+.sr-hold { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 16px; }
+
+.sing-bar { display: none; align-items: center; gap: 12px; padding: 0 16px; min-width: 0; max-width: 100%; }
+.navbar.sing .sing-bar { display: flex; }
+.navbar.sing .nav-btn, .navbar.sing .minimap-wrap { display: none; }
+.navbar.sing.np .sing-bar { display: none; }
+.sing-level { flex: none; width: 56px; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+#singLevel { display: block; height: 100%; width: 0; border-radius: 3px; background: #7bc47f; }
+.sing-msg { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+@media (orientation: landscape) and (max-height: 420px) {
+  #singView { margin-top: 10px; }
+  .sr-sw { font-size: 42px; }
+}

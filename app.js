@@ -93,7 +93,8 @@ let ctx = null, master, notesBus, tanpuraBus, tablaBus, reedWave, reedBus, noise
 
 function audio() {
   if (ctx && ctx.state !== 'closed') return ctx;
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {} // play with silent switch on (iOS 17+)
+  // play with silent switch on (iOS 17+); while singing, the session must also record
+  try { if (navigator.audioSession) navigator.audioSession.type = typeof Sing !== 'undefined' && Sing.listening ? 'play-and-record' : 'playback'; } catch {}
   // Ask for the lowest output latency the device allows (matters for fast taans).
   ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 0 });
   // Zero-latency soft clip as the safety limiter (a compressor adds ~6 ms of lookahead delay).
@@ -1307,6 +1308,7 @@ const Tabla = {
       const ringOn = k === n - 1 && (nextEntry === '-' || nextEntry.startsWith('-'));
       this.stroke(p.stroke, t + at + jitter, v, beat, vb.first && k === 0, ringOn);
     });
+    if (typeof Sing !== 'undefined') Sing.beat(t, i === 0, vb.first);
     this.queue.push({ time: t, matra: i, entry, mark: vb.first ? vb.mark : null, khali: String(tl.marks[vb.v]) === '0' });
   },
 
