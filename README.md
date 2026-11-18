@@ -20,7 +20,7 @@ Harmonium samples: recorded at the Euterpea Studio, Yale University, by Donya Qu
 Cut into single notes by Nicholas Brosowsky in
 [tonejs-instruments](https://github.com/nbrosowsky/tonejs-instruments)
 ([CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)).
-For this app the notes were resampled, loudness-matched and given seamless loop points (files in `harmonium/`).
+For this app every semitone from C2 to D5 (the set has no F♯4) was resampled to 32 kHz mono, its bellows swells gently evened out, loudness-matched and given a seamless loop; its exact pitch was measured from the loop so it can be retuned precisely (files in `harmonium/`).
 
 Tanpura samples: single string plucks recorded by luckylittleraven —
 [Freesound pack 23512](https://freesound.org/people/luckylittleraven/packs/23512/) (CC0):
