@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v8';
+const CACHE = 'riyaz-v10';
 
 const ASSETS = [
   './',
@@ -12,6 +12,8 @@ const ASSETS = [
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
   'icons/favicon-32.png',
+  'harmonium/samples.json',
+  ...['C2', 'Ds2', 'Fs2', 'A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'G4', 'C5', 'D5'].map(n => `harmonium/${n}.wav`),
 ];
 
 self.addEventListener('install', e => {

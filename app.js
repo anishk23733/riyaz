@@ -70,11 +70,12 @@ const mtof = m => 440 * Math.pow(2, (m - 69) / 12 + S.cents / 1200);
 let ctx = null, master, notesBus, tanpuraBus, reedWave, reedBus, noiseBuf;
 
 function audio() {
-  if (ctx) return ctx;
+  if (ctx && ctx.state !== 'closed') return ctx;
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {} // play with silent switch on (iOS 17+)
   ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 4;
+  comp.threshold.value = -8; comp.knee.value = 12; comp.ratio.value = 2.5;
+  comp.attack.value = 0.012; comp.release.value = 0.3; // gentle: no 'punch' when a note starts
   comp.connect(ctx.destination);
   master = ctx.createGain(); master.gain.value = 0.9; master.connect(comp);
   notesBus = ctx.createGain(); notesBus.connect(master);
@@ -107,10 +108,45 @@ function audio() {
   applyBalance();
   return ctx;
 }
+// ---------- Keeping audio alive on iPhone ----------
+// iOS can suspend, interrupt (calls, Siri, other apps, screen lock) or silently stall the
+// audio engine. We resume it on every touch, watch that its clock keeps moving, and if it
+// has died, rebuild it from scratch — no page reload needed.
 function unlock() {
   audio();
-  if (ctx.state !== 'running') ctx.resume();
+  if (ctx.state === 'running') return;
+  const c = ctx;
+  c.resume().then(() => {
+    setTimeout(() => { if (ctx === c && c.state !== 'running') rebuildAudio(); }, 400);
+  }).catch(() => rebuildAudio());
 }
+function rebuildAudio() {
+  const tanpuraWasOn = Tanpura.playing;
+  if (tanpuraWasOn) Tanpura.stop();
+  if (typeof releaseAll === 'function') releaseAll();
+  const old = ctx;
+  ctx = null;
+  try { old && old.close(); } catch {}
+  audio();
+  Tanpura.cache.clear();
+  decodeHarmonium();
+  if (tanpuraWasOn) Tanpura.start();
+}
+let lastClock = -1, stalls = 0;
+setInterval(() => {
+  if (!ctx || document.hidden) return;
+  if (ctx.state === 'running') {
+    if (ctx.currentTime === lastClock) { if (++stalls >= 2) { stalls = 0; rebuildAudio(); } }
+    else stalls = 0;
+    lastClock = ctx.currentTime;
+  } else if (ctx.state !== 'closed') {
+    ctx.resume().catch(() => {});
+  }
+}, 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); });
+window.addEventListener('pageshow', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); });
+['touchend', 'click'].forEach(t => window.addEventListener(t, unlock, { passive: true }));
+
 function applyBalance() {
   if (!ctx) return;
   const b = S.balance / 100; // 0 = tanpura louder, 1 = notes louder
@@ -123,13 +159,110 @@ function applyBalance() {
 // (the gentle beating you hear on a real one) and a lower-octave "bass" reed.
 let lastNoteOn = -1e9;
 const VOICE_LEVEL = 0.085;
+
+// Every new note goes through here. Real recorded harmonium once loaded; until then the
+// generated harmonium. In fast playing (taans) notes must speak instantly and in tune.
 function harmoniumVoice(midi) {
-  const c = audio(), t = c.currentTime, f = mtof(midi);
-  // In fast playing (taans) notes must speak instantly and in tune; the gentle swell and
-  // slightly-flat start of a real reed only suit the first note of a phrase.
   const nowMs = performance.now();
   const quick = nowMs - lastNoteOn < 300 || (typeof touches !== 'undefined' && touches.size > 1);
   lastNoteOn = nowMs;
+  return Harm.ready ? sampledVoice(midi, quick) : synthVoice(midi, quick);
+}
+
+// ---------- Recorded harmonium ----------
+// Samples: harmonium recorded at Yale's Euterpea Studio (Freesound #330410 by donyaquick, CC0),
+// cut into single notes by tonejs-instruments (CC-BY 3.0); loop points added for this app.
+const Harm = { list: [], raw: new Map(), ready: false };
+async function loadHarmonium() {
+  try {
+    const list = await (await fetch('harmonium/samples.json')).json();
+    await Promise.all(list.map(async s => Harm.raw.set(s.file, await (await fetch('harmonium/' + s.file)).arrayBuffer())));
+    Harm.list = list;
+    await decodeHarmonium();
+  } catch (e) { console.warn('Harmonium samples unavailable, using generated sound', e); }
+}
+async function decodeHarmonium() {
+  if (!Harm.list.length) return;
+  Harm.ready = false;
+  const c = audio();
+  await Promise.all(Harm.list.map(s => new Promise((ok, fail) => c.decodeAudioData(Harm.raw.get(s.file).slice(0), b => { s.buf = b; ok(); }, fail))));
+  Harm.ready = Harm.list.every(s => s.buf);
+}
+function nearestSample(m) {
+  let best = Harm.list[0];
+  for (const s of Harm.list) if (Math.abs(s.midi - m) < Math.abs(best.midi - m)) best = s;
+  return best;
+}
+const rateFor = (m, s) => mtof(m) / (440 * Math.pow(2, (s.midi - 69) / 12));
+const SAMPLE_LEVEL = 0.9;
+
+function sampledVoice(midi, quick) {
+  const c = audio(), t = c.currentTime;
+  const out = c.createGain();
+  // Onset: fast enough to feel instant, slow enough not to thump (~15 ms; 25 ms for a phrase's first note)
+  out.gain.setValueAtTime(0, t);
+  out.gain.linearRampToValueAtTime(SAMPLE_LEVEL, t + (quick ? 0.015 : 0.025));
+  out.connect(notesBus);
+  let stopped = false, swapTimer = null, target = midi;
+  // One looping recording, pitch-shifted to the note; meend bends its playback rate.
+  function layer(m, when, fade, offset) {
+    const s = nearestSample(m);
+    const src = c.createBufferSource();
+    src.buffer = s.buf; src.loop = true; src.loopStart = s.loopStart; src.loopEnd = s.loopEnd;
+    src.playbackRate.setValueAtTime(rateFor(m, s), when);
+    const g = c.createGain();
+    g.gain.setValueAtTime(fade ? 0 : 1, when);
+    if (fade) g.gain.linearRampToValueAtTime(1, when + fade);
+    src.connect(g).connect(out);
+    src.start(when, offset);
+    return { s, src, g };
+  }
+  // First note of a phrase uses the recorded attack; fast notes start in the steady tone.
+  let cur = layer(midi, t, 0, quick ? 0.35 : 0.01);
+  return {
+    setPitch(m, tc) {
+      if (stopped) return;
+      target = m;
+      const tt = c.currentTime;
+      cur.src.playbackRate.cancelScheduledValues(tt);
+      cur.src.playbackRate.setTargetAtTime(rateFor(m, cur.s), tt, tc);
+      // Once the pitch settles far from this recording, crossfade to the nearest recorded note
+      // so the timbre stays natural.
+      clearTimeout(swapTimer);
+      if (nearestSample(m) === cur.s) return;
+      swapTimer = setTimeout(() => {
+        if (stopped || target !== m) return;
+        const t2 = c.currentTime, old = cur;
+        cur = layer(m, t2, 0.06, cur.s.loopStart + Math.random() * 0.4);
+        old.g.gain.setValueAtTime(1, t2);
+        old.g.gain.linearRampToValueAtTime(0, t2 + 0.06);
+        old.src.stop(t2 + 0.12);
+      }, Math.max(40, tc * 4000));
+    },
+    articulate() {
+      if (stopped) return;
+      const tt = c.currentTime;
+      out.gain.cancelScheduledValues(tt);
+      out.gain.setValueAtTime(out.gain.value, tt);
+      out.gain.setTargetAtTime(SAMPLE_LEVEL * 0.55, tt, 0.003);
+      out.gain.setTargetAtTime(SAMPLE_LEVEL, tt + 0.011, 0.006);
+    },
+    stop(fast) {
+      if (stopped) return;
+      stopped = true;
+      clearTimeout(swapTimer);
+      const tt = c.currentTime;
+      out.gain.cancelScheduledValues(tt);
+      out.gain.setValueAtTime(out.gain.value, tt);
+      out.gain.setTargetAtTime(0, tt, fast ? 0.01 : 0.03);
+      cur.src.stop(tt + 0.4);
+    },
+  };
+}
+
+// ---------- Generated harmonium (fallback while samples load) ----------
+function synthVoice(midi, quick) {
+  const c = audio(), t = c.currentTime, f = mtof(midi);
   const reeds = [
     { ratio: 1, detune: 0, level: 1 },
     { ratio: 1, detune: 4, level: 0.55 },
@@ -137,7 +270,7 @@ function harmoniumVoice(midi) {
   ];
   const g = c.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.setTargetAtTime(VOICE_LEVEL, t, quick ? 0.005 : 0.016);
+  g.gain.setTargetAtTime(VOICE_LEVEL, t, quick ? 0.006 : 0.012);
   g.connect(reedBus);
   const oscs = reeds.map(r => {
     const o = c.createOscillator(), lv = c.createGain();
@@ -160,7 +293,7 @@ function harmoniumVoice(midi) {
   nz.buffer = noiseBuf; nz.loop = true; nz.loopStart = Math.random();
   nf.type = 'bandpass'; nf.frequency.value = 2800; nf.Q.value = 0.8;
   ng.gain.setValueAtTime(0, t);
-  ng.gain.linearRampToValueAtTime(0.05, t + 0.012);
+  ng.gain.linearRampToValueAtTime(0.02, t + 0.02);
   ng.gain.setTargetAtTime(0.012, t + 0.012, 0.05);
   nz.connect(nf).connect(ng).connect(g);
   nz.start(t);
@@ -429,6 +562,8 @@ function applyScroll(anim) {
   mmWindow.style.left = (first * 12 + 1) + 'px';
   mmWindow.style.width = (count * 12 + 2) + 'px';
   pads.forEach((p, i) => p.tick.classList.toggle('in', i + 1 > first && i < first + count));
+  $('navLeft').disabled = scrollX <= 1;
+  $('navRight').disabled = scrollX >= maxScroll() - 1;
 }
 function slideBy(nPads) {
   // snap so a pad edge sits at the half-pad position
@@ -673,6 +808,27 @@ window.addEventListener('resize', () => { if (info) layout(); });
 portraitMQ.addEventListener('change', () => { releaseAll(); if (info) requestAnimationFrame(layout); });
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+window.addEventListener('pagehide', () => releaseAll());
+window.addEventListener('blur', () => releaseAll());
+
+// Failsafe against stuck notes: iOS occasionally loses a finger-lift event (e.g. when a system
+// gesture interrupts). If no fingers are on the screen at all, nothing should be sounding.
+['touchend', 'touchcancel'].forEach(type => window.addEventListener(type, e => {
+  if (e.touches.length === 0 && touches.size > 0) releaseAll();
+}, { passive: true }));
+
+// No zooming: iOS ignores the viewport's no-zoom setting, so block double-tap and pinch zoom here.
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+
+// Which side is the camera on in landscape? Only that side needs to stay clear.
+function updateNotchSide() {
+  const a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+  document.documentElement.dataset.notch = a === 90 ? 'left' : (a === 270 || a === -90) ? 'right' : 'none';
+}
+updateNotchSide();
+window.addEventListener('orientationchange', updateNotchSide);
+window.addEventListener('resize', updateNotchSide);
 
 // =====================================================================
 // Header
@@ -903,6 +1059,7 @@ function renderPluckChips() {
 // Start
 // =====================================================================
 audio();
+loadHarmonium();
 buildPads();
 renderSettings();
 updateTanpuraUI();
