@@ -72,12 +72,15 @@ let ctx = null, master, notesBus, tanpuraBus, reedWave, reedBus, noiseBuf;
 function audio() {
   if (ctx && ctx.state !== 'closed') return ctx;
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {} // play with silent switch on (iOS 17+)
-  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-  const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -8; comp.knee.value = 12; comp.ratio.value = 2.5;
-  comp.attack.value = 0.012; comp.release.value = 0.3; // gentle: no 'punch' when a note starts
-  comp.connect(ctx.destination);
-  master = ctx.createGain(); master.gain.value = 0.9; master.connect(comp);
+  // Ask for the lowest output latency the device allows (matters for fast taans).
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 0 });
+  // Zero-latency soft clip as the safety limiter (a compressor adds ~6 ms of lookahead delay).
+  const clip = ctx.createWaveShaper();
+  const curve = new Float32Array(2048);
+  for (let i = 0; i < curve.length; i++) { const x = i / (curve.length - 1) * 2 - 1; curve[i] = Math.tanh(1.2 * x) / Math.tanh(1.2); }
+  clip.curve = curve;
+  clip.connect(ctx.destination);
+  master = ctx.createGain(); master.gain.value = 0.8; master.connect(clip);
   notesBus = ctx.createGain(); notesBus.connect(master);
   tanpuraBus = ctx.createGain(); tanpuraBus.connect(master);
   // --- Harmonium model ---
@@ -214,9 +217,9 @@ function sampleWeights(m) {
 function sampledVoice(midi, quick) {
   const c = audio(), t = c.currentTime;
   const out = c.createGain();
-  // Onset: fast enough to feel instant, slow enough not to thump (~15 ms; 25 ms for a phrase's first note)
+  // Onset: ~6 ms for fast taps (they start in the steady tone, so no thump); 15 ms for a phrase's first note
   out.gain.setValueAtTime(0, t);
-  out.gain.linearRampToValueAtTime(SAMPLE_LEVEL, t + (quick ? 0.015 : 0.025));
+  out.gain.linearRampToValueAtTime(SAMPLE_LEVEL, t + (quick ? 0.006 : 0.015));
   out.connect(notesBus);
   const layers = new Map(); // recording -> { src, g }
   let stopped = false;
@@ -707,6 +710,7 @@ stage.addEventListener('pointerdown', e => {
   if (pads[idx].split) { tch.choice = tch.yHalf === 'hi' ? pads[idx].hi : pads[idx].lo; tch.choiceIdx = idx; }
   const off = variantOf(idx, tch);
   tch.off = off;
+  handOver();
   tch.voice = harmoniumVoice(offMidi(idx, off));
   showHeld(tch, elFor(idx, off));
 });
@@ -817,13 +821,37 @@ window.addEventListener('pointermove', e => {
   tch.settle = setTimeout(() => { if (tch.voice && !tch.locked) lockOn(tch, nearestPad(p), variantOf(nearestPad(p), tch), p); }, SETTLE_MS);
 });
 
+// ---------- Fast tapped taans ----------
+// A quick tap may touch the screen for only ~50 ms — too short to hear the note properly.
+// So every tap sounds for at least MIN_NOTE_MS; and the moment the next note starts, a
+// still-ringing tap hands over to it with a very quick crossfade (legato, no mush).
+const MIN_NOTE_MS = 150;
+const lingering = new Set();
+function finishLingering(L, fast) {
+  if (!lingering.has(L)) return;
+  lingering.delete(L);
+  clearTimeout(L.timer);
+  L.voice.stop(fast);
+  showHeld(L, null);
+}
+function handOver() { for (const L of [...lingering]) finishLingering(L, true); }
+
 function endTouch(e) {
   const tch = touches.get(e.pointerId);
   if (!tch) return;
   touches.delete(e.pointerId);
   clearTimeout(tch.settle);
-  if (tch.voice) tch.voice.stop(false);
-  showHeld(tch, null);
+  const age = performance.now() - tch.t0;
+  if (tch.voice && age < MIN_NOTE_MS) {
+    // short tap: keep it sounding (and lit) a little longer
+    const L = { voice: tch.voice, heldEl: tch.heldEl };
+    tch.heldEl = null;
+    L.timer = setTimeout(() => finishLingering(L, false), MIN_NOTE_MS - age);
+    lingering.add(L);
+  } else {
+    if (tch.voice) tch.voice.stop(false);
+    showHeld(tch, null);
+  }
   if (scrolling) {
     scrolling.ids.delete(e.pointerId);
     if (scrolling.ids.size === 0) { scrolling = null; slideBy(0); }
@@ -833,6 +861,7 @@ window.addEventListener('pointerup', endTouch);
 window.addEventListener('pointercancel', endTouch);
 
 function releaseAll() {
+  for (const L of [...lingering]) finishLingering(L, true);
   for (const t of touches.values()) { clearTimeout(t.settle); if (t.voice) t.voice.stop(true); }
   touches.clear();
   scrolling = null;
@@ -866,7 +895,7 @@ window.addEventListener('blur', () => releaseAll());
 // Failsafe against stuck notes: iOS occasionally loses a finger-lift event (e.g. when a system
 // gesture interrupts). If no fingers are on the screen at all, nothing should be sounding.
 ['touchend', 'touchcancel'].forEach(type => window.addEventListener(type, e => {
-  if (e.touches.length === 0 && touches.size > 0) releaseAll();
+  if (e.touches.length === 0 && touches.size > 0) { for (const t of [...touches.values()]) endTouch({ pointerId: t.id }); }
 }, { passive: true }));
 
 // No zooming: iOS ignores the viewport's no-zoom setting, so block double-tap and pinch zoom here.
