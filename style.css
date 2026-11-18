@@ -341,6 +341,9 @@ button:focus:not(:focus-visible) { outline: none; }
 }
 .tree-thaat { height: 40px; padding: 0 10px; font-weight: 600; }
 .tree-thaat.open { background: var(--surface); }
+.tree-thaat.free { margin-bottom: 6px; border: 1px dashed var(--line-2); }
+.tree-thaat.free .caret { color: var(--accent); }
+.tree-thaat.free.sel { background: var(--sa-bg); color: var(--accent); border-color: #6b4f24; }
 .tree-thaat .caret { width: 12px; color: var(--muted); }
 .tree-raga { min-height: 36px; padding: 0 10px 0 30px; }
 .tree-raga.thaat-scale { color: var(--muted); font-size: 14px; }

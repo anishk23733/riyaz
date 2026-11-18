@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v14';
+const CACHE = 'riyaz-v15';
 
 const ASSETS = [
   './',

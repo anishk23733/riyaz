@@ -38,6 +38,12 @@ for (const t of THAATS) {
   });
 }
 for (const r of RAGAS) ALL_RAGAS.set(r.name, r);
+// Free play: all 12 swaras, every swara with two forms on a split pad, no raga rules.
+const FREE_PLAY = {
+  name: 'Free play', thaat: '', isFree: true, time: '',
+  aaroh: "S r R g G m M P d D n N S'", avaroh: "S' N n D d P M m G g R r S",
+};
+ALL_RAGAS.set(FREE_PLAY.name, FREE_PLAY);
 
 const JATI = { 5: 'Audav', 6: 'Shadav', 7: 'Sampurna' };
 function ragaInfo(r) {
@@ -505,7 +511,7 @@ const SWARA_GROUPS = [[0], [1, 2], [3, 4], [5, 6], [7], [8, 9], [10, 11]];
 const heldCount = new Map(); // element -> number of fingers on it
 
 function swaraTag(r, off) {
-  if (r.isThaat) return '';
+  if (r.isThaat || r.isFree) return '';
   const letter = LETTERS[off];
   if (r.vadi === letter) return 'vadi';
   if (r.samvadi === letter) return 'samvadi';
@@ -917,7 +923,7 @@ window.addEventListener('resize', updateNotchSide);
 function updateHeader() {
   const r = currentRaga();
   $('ragaName').textContent = r.isThaat ? r.thaat : r.name;
-  $('ragaThaat').textContent = r.isThaat ? 'thaat scale' : r.thaat + ' thaat';
+  $('ragaThaat').textContent = r.isFree ? 'all 12 swaras' : r.isThaat ? 'thaat scale' : r.thaat + ' thaat';
 }
 function updateTanpuraUI() {
   $('tanpuraBtn').setAttribute('aria-pressed', String(Tanpura.playing));
@@ -973,6 +979,15 @@ function renderTree() {
   const tree = $('tree');
   tree.innerHTML = '';
   let any = false;
+  // Free play sits at the very top
+  if (!q || 'free play'.includes(q.toLowerCase())) {
+    any = true;
+    const b = document.createElement('button');
+    b.className = 'tree-thaat free' + (browserSel === FREE_PLAY.name ? ' sel' : '');
+    b.innerHTML = `<span class="caret">✦</span><span>Free play</span><span class="right">all 12 swaras</span>`;
+    b.onclick = () => { browserSel = FREE_PLAY.name; renderTree(); renderDetail(); };
+    tree.appendChild(b);
+  }
   for (const t of THAATS) {
     const items = [...ALL_RAGAS.values()].filter(r => r.thaat === t.name && matches(r, q));
     const ragas = items.filter(r => !r.isThaat);
@@ -1004,7 +1019,8 @@ function renderDetail() {
   const strip = LETTERS.map((l, i) => `<span class="${i === 0 ? 'sa' : inf.all.includes(i) ? 'on' : ''}">${l}</span>`).join('');
   const kinds = inf.all.filter(o => o !== 0 && o !== 7).map(o =>
     `<span class="${KIND[o] === 'shuddha' ? '' : 'alt'}"><b>${LETTERS[o]}</b> ${SWARA_NAME[o]} ${KIND[o]}</span>`).join('');
-  const meta = [r.isThaat ? 'Thaat (parent scale)' : r.thaat + ' thaat', inf.jati, r.time].filter(Boolean).join(' · ');
+  const meta = r.isFree ? 'Every swara, every form — experiment freely'
+    : [r.isThaat ? 'Thaat (parent scale)' : r.thaat + ' thaat', inf.jati, r.time].filter(Boolean).join(' · ');
   const facts = [];
   facts.push(['Aaroh', formatPhrase(r.aaroh)], ['Avaroh', formatPhrase(r.avaroh)]);
   if (r.pakad) facts.push(['Pakad', formatPhrase(r.pakad)]);
@@ -1018,6 +1034,7 @@ function renderDetail() {
   $('detail').innerHTML = `
     <div class="detail-scroll">
       <div class="detail-title"><h2>${esc(r.isThaat ? r.thaat + ' thaat' : r.name)}</h2><span class="muted small">${esc(meta)}</span></div>
+      ${r.isFree ? '<div class="legend">All 12 swaras. Swaras with two forms share a split pad: the higher form (R G M D N) on top, the lower (r g m d n) below. No raga rules — slide and tap anything.</div>' : ''}
       <div class="strip">${strip}</div>
       <div class="kinds">${kinds}</div>
       <div class="facts">
@@ -1031,7 +1048,7 @@ function renderDetail() {
     <div class="detail-actions">
       <button class="btn" id="hearBtn">▶ Hear aaroh–avaroh</button>
       <span class="grow"></span>
-      <button class="btn primary" id="useBtn">Play ${esc(r.isThaat ? r.thaat : r.name)}</button>
+      <button class="btn primary" id="useBtn">${r.isFree ? 'Start free play' : 'Play ' + esc(r.isThaat ? r.thaat : r.name)}</button>
     </div>`;
   $('hearBtn').onclick = () => togglePreview(r);
   $('useBtn').onclick = () => {
