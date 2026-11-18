@@ -198,27 +198,45 @@ async function decodeHarmonium() {
   await Promise.all(Harm.list.map(s => new Promise((ok, fail) => c.decodeAudioData(Harm.raw.get(s.file).slice(0), b => { s.buf = b; ok(); }, fail))));
   Harm.ready = Harm.list.every(s => s.buf);
 }
-// Each recording's true pitch (measured; they're a few cents sharp, by different amounts).
+// Each recording's true pitch (measured from its loop; they're a few cents sharp, by different amounts).
 const sampleHz = s => 440 * Math.pow(2, (s.midi - 69) / 12 + (s.cents || 0) / 1200);
 const rateFor = (m, s) => mtof(m) / sampleHz(s);
-const SAMPLE_LEVEL = 0.9;
-const BLEND = 0.15; // around halfway between two recordings, blend them (fraction of the gap either side)
+const SAMPLE_LEVEL = 1.0;
+const BLEND = 0.15;     // semitones either side of the switch point between two recordings where they're blended
+const XFADE = 0.08;     // a change of recording always takes at least this long (s): no phasey flicker
+const GAIN_STEP = 0.004; // spacing (s) of the scheduled blend points
 
-// Which recordings to hear at a pitch, and how loud. Near a recording's own note you hear just
-// that recording; around halfway to the next one the two are blended (equal-loudness). Because
-// this depends only on the pitch, a note sounds the same whether you tap it or slide to it,
-// and no recording is ever stretched by more than about half the gap between recordings.
-function sampleWeights(m) {
+// There's a recording for (nearly) every semitone, so a note is shifted by at most half a
+// semitone and every exact note plays its own recording. Between recordings a and b the switch
+// happens halfway (if a note is missing, at the half-semitone past it, never on a note).
+function switchPoint(a, b) { const g = b.midi - a.midi; return a.midi + (g % 2 ? g / 2 : g / 2 + 0.5); }
+// The mix of recordings for pitch m as linear fractions { index: share } (shares add up to 1).
+function sampleMix(m) {
   const L = Harm.list;
-  if (m <= L[0].midi) return [[L[0], 1]];
-  if (m >= L[L.length - 1].midi) return [[L[L.length - 1], 1]];
+  if (m <= L[0].midi) return { 0: 1 };
+  if (m >= L[L.length - 1].midi) return { [L.length - 1]: 1 };
   let i = 0;
-  while (L[i + 1].midi < m) i++;
-  const a = L[i], b = L[i + 1], t = (m - a.midi) / (b.midi - a.midi);
-  if (t <= 0.5 - BLEND) return [[a, 1]];
-  if (t >= 0.5 + BLEND) return [[b, 1]];
-  const x = (t - (0.5 - BLEND)) / (2 * BLEND);
-  return [[a, Math.cos(x * Math.PI / 2)], [b, Math.sin(x * Math.PI / 2)]];
+  while (L[i + 1].midi <= m) i++;
+  const c = switchPoint(L[i], L[i + 1]);
+  if (m <= c - BLEND) return { [i]: 1 };
+  if (m >= c + BLEND) return { [i + 1]: 1 };
+  const f = (m - (c - BLEND)) / (2 * BLEND);
+  return { [i]: 1 - f, [i + 1]: f };
+}
+// Shares -> equal-power gains (two unrelated recordings add up in power, not amplitude).
+function mixGains(a) {
+  let n = 0;
+  for (const k in a) n += a[k] * a[k];
+  n = Math.sqrt(n) || 1;
+  const g = {};
+  for (const k in a) g[k] = a[k] / n;
+  return g;
+}
+// Which recordings to hear at a pitch, and how loud (depends only on the pitch, so a note sounds
+// the same whether you tap it or slide to it).
+function sampleWeights(m) {
+  const g = mixGains(sampleMix(m));
+  return Object.keys(g).map(k => [Harm.list[k], g[k]]);
 }
 
 function sampledVoice(midi, quick) {
@@ -228,44 +246,103 @@ function sampledVoice(midi, quick) {
   out.gain.setValueAtTime(0, t);
   out.gain.linearRampToValueAtTime(SAMPLE_LEVEL, t + (quick ? 0.006 : 0.015));
   out.connect(notesBus);
-  const layers = new Map(); // recording -> { src, g }
+  const layers = new Map(); // recording index -> { src, g, pts: [[time, gain], ...] scheduled }
   let stopped = false;
-  // First note of a phrase uses the recorded attack; fast notes start in the steady tone.
-  const startOffset = quick ? 0.35 : 0.01;
+  // The pitch as scheduled: playbackRate approaches the target exponentially (setTargetAtTime),
+  // so the pitch at any moment is known exactly; new layers start at exactly that pitch.
+  let P = { t, v: midi, m: midi, tc: 1 };
+  const pitchAt = tt => {
+    if (tt <= P.t) return P.v;
+    const r0 = Math.pow(2, P.v / 12), r1 = Math.pow(2, P.m / 12);
+    return 12 * Math.log2(r1 + (r0 - r1) * Math.exp(-(tt - P.t) / P.tc));
+  };
+  const gainAt = (L, tt) => {
+    const p = L.pts;
+    if (!p.length || tt <= p[0][0]) return p.length ? p[0][1] : 0;
+    for (let k = 1; k < p.length; k++) {
+      if (tt <= p[k][0]) return p[k - 1][1] + (p[k][1] - p[k - 1][1]) * (tt - p[k - 1][0]) / (p[k][0] - p[k - 1][0]);
+    }
+    return p[p.length - 1][1];
+  };
 
-  function layerFor(s, when, offset) {
-    let L = layers.get(s);
+  function layerFor(i, when, offset) {
+    let L = layers.get(i);
     if (L) return L;
+    const s = Harm.list[i];
     const src = c.createBufferSource();
     src.buffer = s.buf; src.loop = true; src.loopStart = s.loopStart; src.loopEnd = s.loopEnd;
     const g = c.createGain();
     g.gain.setValueAtTime(0, when);
     src.connect(g).connect(out);
     src.start(when, offset);
-    L = { src, g };
-    layers.set(s, L);
+    L = { src, g, pts: [] };
+    layers.set(i, L);
     return L;
   }
-  // Move every layer to pitch m (gliding with time constant tc) and set the blend for m.
+  // Glide every layer to pitch m (time constant tc) and crossfade the recordings along the way.
+  // The blend follows the pitch curve itself (scheduled point by point), moving no faster than
+  // XFADE per recording, and power-normalised, so there are no dips, flickers or blips.
   function goTo(m, tc, first) {
     const tt = c.currentTime;
-    const want = new Map(sampleWeights(m));
-    for (const s of want.keys()) layerFor(s, tt, first ? startOffset : s.loopStart + Math.random() * 0.4);
-    for (const [s, L] of layers) {
+    const mNow = first ? m : pitchAt(tt);
+    P = { t: tt, v: mNow, m, tc: Math.max(tc, 1e-4) };
+    // current mix (as shares) -> path of mixes toward the target
+    let a;
+    if (first) a = sampleMix(m);
+    else {
+      a = {}; let sum = 0;
+      for (const [i, L] of layers) { const g = gainAt(L, tt); if (g > 1e-6) { a[i] = g; sum += g; } }
+      for (const i in a) a[i] /= sum || 1;
+    }
+    const aEnd = sampleMix(m);
+    const times = [tt], path = [mixGains(a)];
+    if (!first) {
+      const horizon = Math.min(6 * Math.max(tc, 0.003), 0.5), step = GAIN_STEP / XFADE;
+      for (let k = 1; k < 400; k++) {
+        const tk = tt + k * GAIN_STEP;
+        const want = tk - tt <= horizon ? sampleMix(pitchAt(tk)) : aEnd;
+        const na = {}; let sum = 0;
+        for (const i of new Set([...Object.keys(a), ...Object.keys(want)])) {
+          const x = a[i] || 0, d = (want[i] || 0) - x;
+          const v = x + Math.max(-step, Math.min(step, d));
+          if (v > 1e-6) { na[i] = v; sum += v; }
+        }
+        for (const i in na) na[i] /= sum;
+        a = na;
+        times.push(tk); path.push(mixGains(a));
+        if (tk - tt > horizon) {
+          let done = true;
+          for (const i of new Set([...Object.keys(a), ...Object.keys(aEnd)])) if (Math.abs((a[i] || 0) - (aEnd[i] || 0)) > 1e-6) { done = false; break; }
+          if (done) break;
+        }
+      }
+    }
+    for (const w of path) for (const i in w) layerFor(+i, tt, first ? (quick ? Harm.list[i].steady || 0.35 : 0.01) : Harm.list[i].loopStart + Math.random() * 0.4);
+    const tEnd = times[times.length - 1];
+    for (const [i, L] of layers) {
+      const s = Harm.list[i];
       L.src.playbackRate.cancelScheduledValues(tt);
-      if (first) L.src.playbackRate.setValueAtTime(rateFor(m, s), tt);
-      else L.src.playbackRate.setTargetAtTime(rateFor(m, s), tt, tc);
-      const w = want.get(s) || 0;
+      L.src.playbackRate.setValueAtTime(rateFor(mNow, s), tt);
+      if (!first && tc > 0) L.src.playbackRate.setTargetAtTime(rateFor(m, s), tt, tc);
+      const g0 = first ? path[0][i] || 0 : gainAt(L, tt);
       L.g.gain.cancelScheduledValues(tt);
-      if (first) L.g.gain.setValueAtTime(w, tt);
-      else L.g.gain.setTargetAtTime(w, tt, Math.max(0.015, tc));
-      if (w === 0) {
-        // fully faded out: stop it shortly (unless the pitch comes back)
-        clearTimeout(L.kill);
+      L.g.gain.setValueAtTime(g0, tt);
+      const pts = [[tt, g0]];
+      const n = times.length;
+      for (let k = 1; k < n; k++) {
+        const w = path[k][i] || 0, wp = path[k - 1][i] || 0, wn = k < n - 1 ? path[k + 1][i] || 0 : NaN;
+        if (Math.abs(w - wp) < 1e-9 && Math.abs(w - wn) < 1e-9) continue; // only the corners
+        L.g.gain.linearRampToValueAtTime(w, times[k]);
+        pts.push([times[k], w]);
+      }
+      L.pts = pts;
+      clearTimeout(L.kill);
+      if (!(aEnd[i] > 0)) {
+        // fading out: stop it once silent (unless the pitch comes back)
         L.kill = setTimeout(() => {
-          if (!want.has(s) && layers.get(s) === L && L.g.gain.value < 0.01) { L.src.stop(); layers.delete(s); }
-        }, 400);
-      } else clearTimeout(L.kill);
+          if (layers.get(i) === L && gainAt(L, c.currentTime) < 1e-4) { L.src.stop(); layers.delete(i); }
+        }, (tEnd - tt) * 1000 + 400);
+      }
     }
   }
   goTo(midi, 0, true);

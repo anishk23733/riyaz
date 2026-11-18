@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v18';
+const CACHE = 'riyaz-v19';
 
 const ASSETS = [
   './',
@@ -13,7 +13,11 @@ const ASSETS = [
   'icons/apple-touch-icon.png',
   'icons/favicon-32.png',
   'harmonium/samples.json',
-  ...['C2', 'Ds2', 'Fs2', 'A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'G4', 'C5', 'D5'].map(n => `harmonium/${n}.wav`),
+  // every semitone C2–D5 (the source has no F♯4)
+  ...['C2', 'Cs2', 'D2', 'Ds2', 'E2', 'F2', 'Fs2', 'G2', 'Gs2', 'A2', 'As2', 'B2',
+      'C3', 'Cs3', 'D3', 'Ds3', 'E3', 'F3', 'Fs3', 'G3', 'Gs3', 'A3', 'As3', 'B3',
+      'C4', 'Cs4', 'D4', 'Ds4', 'E4', 'F4', 'G4', 'Gs4', 'A4', 'As4', 'B4',
+      'C5', 'Cs5', 'D5'].map(n => `harmonium/${n}.wav`),
   'tanpura/samples.json',
   ...['Cs2', 'Gs2', 'As2', 'Cs3'].map(n => `tanpura/${n}.wav`),
 ];

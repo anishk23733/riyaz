@@ -2,92 +2,305 @@
  {
   "file": "C2.wav",
   "midi": 36,
-  "loopStart": 1.2,
-  "loopEnd": 3.652406,
-  "cents": -5.5
+  "loopStart": 0.45,
+  "loopEnd": 2.351656,
+  "cents": -0.38,
+  "steady": 0.386
+ },
+ {
+  "file": "Cs2.wav",
+  "midi": 37,
+  "loopStart": 0.6,
+  "loopEnd": 2.0845,
+  "cents": 1.64,
+  "steady": 0.439
+ },
+ {
+  "file": "D2.wav",
+  "midi": 38,
+  "loopStart": 0.989812,
+  "loopEnd": 2.618875,
+  "cents": 5.71,
+  "steady": 0.54
  },
  {
   "file": "Ds2.wav",
   "midi": 39,
-  "loopStart": 1.4,
-  "loopEnd": 3.712125,
-  "cents": 4.7
+  "loopStart": 1.199969,
+  "loopEnd": 3.096031,
+  "cents": 5.4,
+  "steady": 0.395
+ },
+ {
+  "file": "E2.wav",
+  "midi": 40,
+  "loopStart": 1.170406,
+  "loopEnd": 2.6335,
+  "cents": 6.38,
+  "steady": 0.62
+ },
+ {
+  "file": "F2.wav",
+  "midi": 41,
+  "loopStart": 0.839031,
+  "loopEnd": 2.3325,
+  "cents": 7.55,
+  "steady": 0.539
  },
  {
   "file": "Fs2.wav",
   "midi": 42,
-  "loopStart": 1.6,
-  "loopEnd": 3.975031,
-  "cents": 3.0
+  "loopStart": 1.099969,
+  "loopEnd": 2.683469,
+  "cents": 5.76,
+  "steady": 0.391
+ },
+ {
+  "file": "G2.wav",
+  "midi": 43,
+  "loopStart": 1.15,
+  "loopEnd": 2.913844,
+  "cents": 5.74,
+  "steady": 0.405
+ },
+ {
+  "file": "Gs2.wav",
+  "midi": 44,
+  "loopStart": 0.6,
+  "loopEnd": 2.530344,
+  "cents": 4.47,
+  "steady": 0.362
  },
  {
   "file": "A2.wav",
   "midi": 45,
-  "loopStart": 1.8,
-  "loopEnd": 4.350031,
-  "cents": 5.0
+  "loopStart": 0.95,
+  "loopEnd": 2.808344,
+  "cents": 8.32,
+  "steady": 0.406
+ },
+ {
+  "file": "As2.wav",
+  "midi": 46,
+  "loopStart": 1.049969,
+  "loopEnd": 2.652188,
+  "cents": 6.67,
+  "steady": 0.335
+ },
+ {
+  "file": "B2.wav",
+  "midi": 47,
+  "loopStart": 0.799969,
+  "loopEnd": 2.25,
+  "cents": 8.21,
+  "steady": 0.367
  },
  {
   "file": "C3.wav",
   "midi": 48,
-  "loopStart": 2.0,
-  "loopEnd": 4.30525,
-  "cents": 4.0
+  "loopStart": 0.557562,
+  "loopEnd": 2.481812,
+  "cents": 4.86,
+  "steady": 0.558
+ },
+ {
+  "file": "Cs3.wav",
+  "midi": 49,
+  "loopStart": 0.999969,
+  "loopEnd": 2.946812,
+  "cents": 3.94,
+  "steady": 0.411
+ },
+ {
+  "file": "D3.wav",
+  "midi": 50,
+  "loopStart": 0.849969,
+  "loopEnd": 2.721281,
+  "cents": 7.48,
+  "steady": 0.357
  },
  {
   "file": "Ds3.wav",
   "midi": 51,
-  "loopStart": 1.6,
-  "loopEnd": 4.258125,
-  "cents": 2.7
+  "loopStart": 1.15,
+  "loopEnd": 2.8655,
+  "cents": 3.7,
+  "steady": 0.34
+ },
+ {
+  "file": "E3.wav",
+  "midi": 52,
+  "loopStart": 1.049969,
+  "loopEnd": 2.511906,
+  "cents": 7.47,
+  "steady": 0.368
+ },
+ {
+  "file": "F3.wav",
+  "midi": 53,
+  "loopStart": 1.200875,
+  "loopEnd": 2.972656,
+  "cents": 5.78,
+  "steady": 0.451
  },
  {
   "file": "Fs3.wav",
   "midi": 54,
-  "loopStart": 1.2,
-  "loopEnd": 3.696563,
-  "cents": 14.8
+  "loopStart": 0.637906,
+  "loopEnd": 2.20425,
+  "cents": 18.16,
+  "steady": 0.488
+ },
+ {
+  "file": "G3.wav",
+  "midi": 55,
+  "loopStart": 1.199969,
+  "loopEnd": 3.140781,
+  "cents": 6.92,
+  "steady": 0.439
+ },
+ {
+  "file": "Gs3.wav",
+  "midi": 56,
+  "loopStart": 0.55,
+  "loopEnd": 2.378656,
+  "cents": 5.59,
+  "steady": 0.371
  },
  {
   "file": "A3.wav",
   "midi": 57,
-  "loopStart": 1.8,
-  "loopEnd": 4.236187,
-  "cents": 8.7
+  "loopStart": 0.45,
+  "loopEnd": 2.393719,
+  "cents": 9.32,
+  "steady": 0.258
+ },
+ {
+  "file": "As3.wav",
+  "midi": 58,
+  "loopStart": 1.235906,
+  "loopEnd": 2.976438,
+  "cents": 7.22,
+  "steady": 0.636
+ },
+ {
+  "file": "B3.wav",
+  "midi": 59,
+  "loopStart": 1.211156,
+  "loopEnd": 2.662906,
+  "cents": 9.16,
+  "steady": 0.561
  },
  {
   "file": "C4.wav",
   "midi": 60,
-  "loopStart": 1.4,
-  "loopEnd": 3.829531,
-  "cents": 7.5
+  "loopStart": 0.464062,
+  "loopEnd": 2.4105,
+  "cents": 7.22,
+  "steady": 0.464
+ },
+ {
+  "file": "Cs4.wav",
+  "midi": 61,
+  "loopStart": 0.999969,
+  "loopEnd": 2.452031,
+  "cents": 6.5,
+  "steady": 0.214
+ },
+ {
+  "file": "D4.wav",
+  "midi": 62,
+  "loopStart": 0.741313,
+  "loopEnd": 2.353656,
+  "cents": 7.84,
+  "steady": 0.541
  },
  {
   "file": "Ds4.wav",
   "midi": 63,
-  "loopStart": 1.4,
-  "loopEnd": 4.293812,
-  "cents": 7.7
+  "loopStart": 0.45,
+  "loopEnd": 1.902938,
+  "cents": 7.45,
+  "steady": 0.265
+ },
+ {
+  "file": "E4.wav",
+  "midi": 64,
+  "loopStart": 0.544625,
+  "loopEnd": 2.126281,
+  "cents": 9.94,
+  "steady": 0.495
+ },
+ {
+  "file": "F4.wav",
+  "midi": 65,
+  "loopStart": 0.6,
+  "loopEnd": 2.052469,
+  "cents": 6.02,
+  "steady": 0.356
  },
  {
   "file": "G4.wav",
   "midi": 67,
-  "loopStart": 2.0,
-  "loopEnd": 4.610125,
-  "cents": 7.3
+  "loopStart": 0.753188,
+  "loopEnd": 2.205781,
+  "cents": 6.86,
+  "steady": 0.703
+ },
+ {
+  "file": "Gs4.wav",
+  "midi": 68,
+  "loopStart": 0.6,
+  "loopEnd": 2.116656,
+  "cents": 8.06,
+  "steady": 0.382
+ },
+ {
+  "file": "A4.wav",
+  "midi": 69,
+  "loopStart": 0.466094,
+  "loopEnd": 2.415469,
+  "cents": 10.07,
+  "steady": 0.466
+ },
+ {
+  "file": "As4.wav",
+  "midi": 70,
+  "loopStart": 0.753844,
+  "loopEnd": 2.24575,
+  "cents": 8.73,
+  "steady": 0.754
+ },
+ {
+  "file": "B4.wav",
+  "midi": 71,
+  "loopStart": 0.45,
+  "loopEnd": 2.1655,
+  "cents": 10.18,
+  "steady": 0.335
  },
  {
   "file": "C5.wav",
   "midi": 72,
-  "loopStart": 1.8,
-  "loopEnd": 4.161437,
-  "cents": 8.9
+  "loopStart": 0.6,
+  "loopEnd": 2.3365,
+  "cents": 10.54,
+  "steady": 0.261
+ },
+ {
+  "file": "Cs5.wav",
+  "midi": 73,
+  "loopStart": 0.45,
+  "loopEnd": 1.910938,
+  "cents": 8.15,
+  "steady": 0.358
  },
  {
   "file": "D5.wav",
   "midi": 74,
-  "loopStart": 2.0,
-  "loopEnd": 4.562281,
-  "cents": 9.7
+  "loopStart": 0.799969,
+  "loopEnd": 2.521906,
+  "cents": 9.88,
+  "steady": 0.287
  }
 ]
