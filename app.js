@@ -1191,7 +1191,11 @@ const Tabla = {
 
   // Pick a recording of a stroke type, never the same take twice in a row.
   pick(cls, ok = () => true) {
-    const c = Tab.list.filter(s => s.cls === cls && s.buf && ok(s)); // only strokes that have loaded
+    let c = Tab.list.filter(s => s.cls === cls && s.buf && ok(s)); // only strokes that have loaded
+    // One tabla as the main voice (mmiron's, tuned closest to Sa); the other set only now and
+    // then, so a theka doesn't sound like two different drums taking turns.
+    const main = c.filter(s => s.file.startsWith('m_'));
+    if (main.length && Math.random() < 0.85) c = main;
     if (!c.length) return null;
     const pool = c.length > 1 ? c.filter(s => s !== this.recent[cls]) : c;
     const s = pool[Math.floor(Math.random() * pool.length)];
@@ -1231,7 +1235,7 @@ const Tabla = {
     // Dha / Dhin: use a real two-handed recording when the dayan needs only a small retune,
     // otherwise layer a retuned dayan stroke over an untouched bayan stroke.
     const combo = st.b === 'ge' ? (st.d === 'na' ? 'dha' : st.d === 'tin' ? 'dhin' : null) : null;
-    if (combo && Math.random() < 0.5) {
+    if (combo && Math.random() < 0.2) {
       const s = this.pick(combo, x => Math.abs(dayanShift(x.hz)) <= 2.5);
       if (s) { this.play(s, t, vel); return; }
     }
@@ -1239,7 +1243,8 @@ const Tabla = {
     if (st.b) {
       // Choose the bayan Ge by context: long falling/steady Ge on strong beats and slow lay,
       // short Ge in fast lay.
-      const want = beat < 0.3 ? ['short'] : first ? ['fall', 'flat'] : ['fall', 'flat', 'short'];
+      const ringing = st.d === 'tin'; // Dhin needs a long open Ge, never a short or rising one
+      const want = ringing ? ['fall', 'flat'] : beat < 0.3 ? ['short', 'fall'] : first ? ['fall', 'flat'] : ['fall', 'flat'];
       const s = this.pick(st.b, x => st.b !== 'ge' || want.includes(x.ge));
       // bayan lands a hair before/after the dayan, like real hands
       if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * (st.accent ? 1.15 : 1));
@@ -1673,7 +1678,23 @@ function keepInStep() {
   Tanpura.nextTime = t;
 }
 
+// Stroke check (Settings): play one bol at a time; each tap tries another recording and
+// shows which one, so a stroke that sounds wrong can be named and fixed.
+const CHECK_BOLS = ['Dha', 'Dhin', 'Tin', 'Ta', 'Tun', 'Ge', 'Ke'];
+function checkStroke(bol) {
+  unlock();
+  const st = STROKES[bol];
+  const used = [];
+  const orig = Tabla.play.bind(Tabla);
+  Tabla.play = (s, t, v) => { used.push(s.file.replace('.wav', '')); orig(s, t, v); };
+  Tabla.stroke(st, ctx.currentTime + 0.02, 1, 1, true);
+  Tabla.play = orig;
+  $('strokeInfo').textContent = `${bol}: ${used.join(' + ') || '—'}`;
+}
+
 function renderTablaSettings() {
+  $('strokeChecks').innerHTML = CHECK_BOLS.map(b => `<button data-check="${b}">${b}</button>`).join('');
+  $('strokeChecks').querySelectorAll('button').forEach(b => { b.onclick = () => checkStroke(b.dataset.check); });
   $('taalChips').innerHTML = TAALS.map(t =>
     `<button data-taal="${t.name}" class="${t.name === Tabla.taal().name ? 'sel' : ''}">${t.name} <span class="muted small">${t.matras}</span></button>`).join('');
   $('taalChips').querySelectorAll('button').forEach(b => {
