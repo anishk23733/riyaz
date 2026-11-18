@@ -400,12 +400,23 @@ function padAt(p, current) {
   return clamp(Math.floor(p), 0, N - 1);
 }
 
-// Meend: the pitch always travels to the next raga note and lands exactly on it —
-// it never rests between notes. Slow slide = slow meend, quick wiggle = crisp murki.
-function glideTime(msSinceLastNote) {
-  if (S.slide === 'steps') return 0.003;
-  return clamp(msSinceLastNote / 1000 * 0.45, 0.03, 0.22) / 3; // time constant ≈ 1/3 of glide
+// ---------- Meend ----------
+// While the finger moves, pitch follows it continuously along the raga's notes. Each pad's
+// middle holds the exact note and the pitch curves smoothly (slow–fast–slow) between pads,
+// so P→R in Yaman is one unbroken glide that brushes M and G on the way. The moment the
+// finger pauses, the pitch eases onto the nearest raga note, so it never rests off-raga.
+const HOLD = 0.2;          // part of each pad (either side of its middle) that holds the exact note
+const MEEND_SMOOTH = 0.045; // smoothing (s) — removes finger jitter so the curve sounds sung
+const SETTLE_MS = 70;       // pause this long and the pitch settles onto the nearest note
+function meendPitch(p) {
+  const N = pads.length, q = p - 0.5, i = Math.floor(q), t = q - i;
+  if (i < 0) return padMidi(0);
+  if (i >= N - 1) return padMidi(N - 1);
+  let s = t <= HOLD ? 0 : t >= 1 - HOLD ? 1 : (t - HOLD) / (1 - 2 * HOLD);
+  s = s * s * (3 - 2 * s);
+  return padMidi(i) + (padMidi(i + 1) - padMidi(i)) * s;
 }
+const nearestPad = p => clamp(Math.round(p - 0.5), 0, pads.length - 1);
 
 function setHeld(idx, delta) {
   const p = pads[idx];
@@ -431,11 +442,13 @@ stage.addEventListener('pointerdown', e => {
   unlock();
   stageLeft = startOf(stage);
   const p = (ax(e) - stageLeft + scrollX) / step;
-  const tch = { id: e.pointerId, x0: ax(e), y0: ay(e), x: ax(e), y: ay(e), t0: performance.now(), lastChange: performance.now(), voice: null, idx: -1 };
+  const tch = { id: e.pointerId, x0: ax(e), y0: ay(e), x: ax(e), y: ay(e), t0: performance.now(), voice: null, idx: -1 };
   touches.set(e.pointerId, tch);
   if (scrolling) { scrolling.ids.add(e.pointerId); return; }
   const padIdx = padAt(p, -1);
   tch.idx = padIdx;
+  tch.p0 = p;
+  tch.shift = (padIdx + 0.5) - p;
   tch.voice = harmoniumVoice(padMidi(padIdx));
   setHeld(padIdx, 1);
 });
@@ -469,19 +482,33 @@ window.addEventListener('pointermove', e => {
   }
 
   if (!tch.voice) return;
-  const p = (ax(e) - stageLeft + scrollX) / step;
-  const idx = padAt(p, tch.idx);
-  if (idx === tch.idx) return;
-  const now = performance.now();
-  tch.voice.setPitch(padMidi(idx), glideTime(now - tch.lastChange));
-  tch.lastChange = now;
-  setHeld(tch.idx, -1); setHeld(idx, 1); tch.idx = idx;
+  const raw = (ax(e) - stageLeft + scrollX) / step;
+
+  if (S.slide === 'steps') {
+    const idx = padAt(raw, tch.idx);
+    if (idx === tch.idx) return;
+    tch.voice.setPitch(padMidi(idx), 0.003);
+    setHeld(tch.idx, -1); setHeld(idx, 1); tch.idx = idx;
+    return;
+  }
+
+  // Meend. Where you first touched always sounds that pad's exact note; that offset fades
+  // out over the first pad of movement, so the pitch stays in line with your finger.
+  const moved = Math.abs(raw - tch.p0);
+  if (moved < 0.12) return; // tiny wobble on the first touch: stay on the note
+  const p = raw + tch.shift * Math.max(0, 1 - moved);
+  tch.voice.setPitch(meendPitch(p), MEEND_SMOOTH);
+  const idx = nearestPad(p);
+  if (idx !== tch.idx) { setHeld(tch.idx, -1); setHeld(idx, 1); tch.idx = idx; }
+  clearTimeout(tch.settle);
+  tch.settle = setTimeout(() => { if (tch.voice) tch.voice.setPitch(padMidi(nearestPad(p)), 0.05); }, SETTLE_MS);
 });
 
 function endTouch(e) {
   const tch = touches.get(e.pointerId);
   if (!tch) return;
   touches.delete(e.pointerId);
+  clearTimeout(tch.settle);
   if (tch.voice) tch.voice.stop(false);
   if (tch.idx >= 0) setHeld(tch.idx, -1);
   if (scrolling) {
