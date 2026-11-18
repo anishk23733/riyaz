@@ -55,23 +55,34 @@ button { cursor: pointer; touch-action: manipulation; }
 
 #root { position: fixed; inset: 0; overflow: hidden; }
 
-/* iPhones can't lock orientation, so in portrait we draw the whole app rotated 90°:
-   turn the phone sideways (works with Portrait Orientation Lock on) and it's upright. */
+/* Portrait: hide the app and ask to turn the phone sideways. */
+#rotate { display: none; }
 @media (orientation: portrait) {
-  #root {
-    inset: auto;
-    top: 0;
-    left: 0;
-    width: 100vh;
-    height: 100vw;
-    width: 100dvh;
-    transform-origin: top left;
-    transform: rotate(90deg) translateY(-100%);
+  #root { visibility: hidden; }
+  #rotate {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 32px;
+    text-align: center;
+    background: var(--bg);
+    color: var(--text);
   }
-  #app, .sheet {
-    padding: 0 4px 0 env(safe-area-inset-top); /* no empty strip where Safari's bar used to be */
-  }
+  #rotate .phone { animation: turn 2.4s ease-in-out infinite; }
+  #rotate h2 { margin: 0; font-size: 22px; }
+  #rotate p { margin: 0; max-width: 280px; color: var(--muted); font-size: 14px; line-height: 1.45; }
 }
+@keyframes turn {
+  0%, 20% { transform: rotate(0deg); }
+  50%, 80% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) { #rotate .phone { animation: none; transform: rotate(-90deg); } }
 
 #app {
   height: 100%;
@@ -552,7 +563,7 @@ button:focus:not(:focus-visible) { outline: none; }
   .tanpura-btn span { display: none; }
   #ragaThaat { display: none; }
 }
-@media (orientation: landscape) and (max-height: 420px), (orientation: portrait) and (max-width: 420px) {
+@media (orientation: landscape) and (max-height: 420px) {
   .navbar { height: 52px; }
   #stage { margin-top: 10px; }
 }

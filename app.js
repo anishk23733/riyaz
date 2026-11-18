@@ -631,15 +631,14 @@ function showHeld(tch, el) {
 }
 
 // ---------- gestures ----------
-// In portrait the whole app is drawn rotated 90° (see style.css), so the app's
-// "horizontal" axis is the screen's vertical one. These map screen touches into app space.
+// The app only runs in landscape (portrait shows a "turn your phone" screen).
 const portraitMQ = matchMedia('(orientation: portrait)');
-const ax = e => portraitMQ.matches ? e.clientY : e.clientX;      // along the pads
-const ay = e => portraitMQ.matches ? -e.clientX : e.clientY;     // across the pads
-const startOf = el => { const r = el.getBoundingClientRect(); return portraitMQ.matches ? r.top : r.left; };
+const ax = e => e.clientX;   // along the pads
+const ay = e => e.clientY;   // across the pads
+const startOf = el => el.getBoundingClientRect().left;
 // 0 = top of the pads, 1 = bottom (in app space)
 function yFrac(e, rect) {
-  return portraitMQ.matches ? (rect.right - e.clientX) / rect.width : (e.clientY - rect.top) / rect.height;
+  return (e.clientY - rect.top) / rect.height;
 }
 function updateYHalf(tch, e) {
   const f = yFrac(e, tch.rect);

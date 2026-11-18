@@ -16,7 +16,16 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- In portrait, #root is drawn rotated 90° so the app is always landscape -->
+  <!-- Shown instead of the app when the phone is upright -->
+  <div id="rotate" role="alert">
+    <svg class="phone" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="20" y="6" width="24" height="52" rx="5" fill="none" stroke="#f2a33a" stroke-width="3"/>
+      <circle cx="32" cy="51" r="2" fill="#f2a33a"/>
+    </svg>
+    <h2>Turn your phone sideways</h2>
+    <p>Riyaz plays in landscape. If the screen doesn't rotate, turn off Portrait Orientation Lock in Control Center.</p>
+  </div>
+
   <div id="root">
   <div id="app">
     <header class="topbar">
