@@ -699,6 +699,23 @@ buildPads();
 renderSettings();
 updateTanpuraUI();
 
+// Updates: check for a new version on launch and whenever the app comes back to the foreground.
+// If one is found right at launch, reload into it immediately; if you're already practising,
+// wait until you next leave and return to the app, so it never interrupts you.
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const hadController = !!navigator.serviceWorker.controller;
+  let updatePending = false, reg = null;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // first install, nothing to update
+    const busy = Tanpura.playing || touches.size > 0 || performance.now() > 8000;
+    if (busy) updatePending = true; else location.reload();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (updatePending && !Tanpura.playing) location.reload();
+    else if (reg) reg.update().catch(() => {});
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => { reg = r; }).catch(() => {});
+  });
 }
