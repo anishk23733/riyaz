@@ -68,7 +68,19 @@ if (typeof S.bpm !== 'number' || S.bpm === 60 && !localStorage.getItem('riyaz-te
 try { localStorage.setItem('riyaz-tempo', '1'); } catch {}
 if (S.extra === 'off' && !localStorage.getItem('riyaz-v2')) S.extra = null;
 try { localStorage.setItem('riyaz-v2', '1'); } catch {}
-const save = () => { try { localStorage.setItem('riyaz', JSON.stringify(S)); } catch {} };
+// Settings are saved on the phone (localStorage), with a backup copy in the app's offline
+// storage in case iOS ever clears the main copy. (Note: Safari and the home-screen app have
+// separate storage on iPhone — settings made in one don't appear in the other.)
+const SETTINGS_BACKUP = 'riyaz-settings';
+const save = () => {
+  try { localStorage.setItem('riyaz', JSON.stringify(S)); } catch {}
+  try {
+    if ('caches' in window) caches.open(SETTINGS_BACKUP).then(c => c.put('settings.json', new Response(JSON.stringify(S), { headers: { 'Content-Type': 'application/json' } }))).catch(() => {});
+  } catch {}
+};
+// Ask the browser to keep this app's data permanently (not cleared when space runs low).
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch {}
+const hadSavedSettings = (() => { try { return !!localStorage.getItem('riyaz'); } catch { return false; } })();
 
 const currentRaga = () => ALL_RAGAS.get(S.raga);
 const saMidi = () => 12 * (S.saOct + 1) + S.saPc;
@@ -1794,6 +1806,19 @@ function renderPluckChips() {
 // =====================================================================
 // Start
 // =====================================================================
+// If the main copy of the settings was wiped but the backup survived, restore it.
+if (!hadSavedSettings && 'caches' in window) {
+  caches.open(SETTINGS_BACKUP).then(c => c.match('settings.json')).then(r => r && r.json()).then(saved => {
+    if (!saved || typeof saved !== 'object') return;
+    Object.assign(S, saved);
+    if (!ALL_RAGAS.has(S.raga)) S.raga = DEFAULTS.raga;
+    save();
+    buildPads(); renderSettings(); updateHeader(); updateTablaUI();
+    if (tablaBus) tablaBus.gain.value = S.tablaVol;
+    applyBalance();
+  }).catch(() => {});
+}
+
 audio();
 loadHarmonium();
 loadTanpura();

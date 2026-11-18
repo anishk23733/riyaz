@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v30';
+const CACHE = 'riyaz-v31';
 
 const ASSETS = [
   './',
@@ -37,7 +37,8 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      // remove old app versions only — never the settings backup
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k.startsWith('riyaz-v')).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
