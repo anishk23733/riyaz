@@ -3,22 +3,29 @@
 
 // =====================================================================
 // Sing: listens through the microphone and draws your voice's pitch as a line over the
-// raga's swaras, so you can see meend, andolan and how steadily you hold a note.
+// raga's swaras, so you can see meend, andolan and how steadily you hold a note. Everything
+// sung in the session is kept: drag the trace to look back, and the notes you held are written
+// out as sargam (on the trace, and as a transcript along the top) — sing a song to find its notes.
 // =====================================================================
-const SING_SECONDS = 8;   // history on screen
+const SING_SECONDS = 8;   // time across the screen
+const KEEP_POINTS = 65000; // history kept (~15 minutes of singing)
 const HOLD_TOL = 45;      // cents: within this of a note you're on it
 const HOLD_EXIT = 60;     // cents: and you stay on it until you move this far away
-const REST_AFTER = 0.15;  // s on one note before it counts as resting there (not just passing)
+const REST_AFTER = 0.12;  // s on one note before it counts as a sung note (not just passing through)
 const SHOW_HOLD = 0.5;    // s before a hold's numbers are shown
 const GAP = 0.09;         // s without pitch that breaks the line
+const PHRASE_GAP = 0.6;   // s between notes that starts a new phrase in the transcript
+const SILENCE_KEEP = 0.8; // without tabla, a longer silence is shortened to this: the trace only moves while you sing
 const TRACE = { pass: 'rgba(236, 234, 228, .55)', raga: '#f2a33a', off: '#ff6b5e' };
 
 const Sing = {
-  on: false, listening: false, frozen: false,
-  stream: null, src: null, an: null, sink: null, ctxRef: null, data: null, winSec: 0.043,
-  pts: [], beats: [], raw: [], hold: null, lastHold: null,
+  on: false, listening: false,
+  stream: null, src: null, an: null, sink: null, ctxRef: null, data: null, winSec: 0.043, tOff: 0, vOff: 0, lastVoiced: null,
+  pts: [], notes: [], phrases: [], notesVer: 0, shownVer: -1, beats: [], raw: [], hold: null, lastHold: null,
   floor: 0.003, level: 0, center: 600, target: 600, lastT: -1, lastFrame: 0, lastAnalysis: 0,
   heard: false, raf: 0, w: 0, h: 0, msgText: '',
+  view: null, // null = live; { t, center } while looking back
+  geo: null,  // last drawn layout (for dragging)
 
   canvas: $('singCanvas'),
 
@@ -26,7 +33,7 @@ const Sing = {
 
   async open() {
     this.on = true;
-    this.frozen = false;
+    this.view = null;
     this.ui();
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame(() => this.frame());
@@ -65,10 +72,14 @@ const Sing = {
     this.stream = stream;
     this.attach();
     this.listening = true;
-    this.reset();
+    this.raw = [];
+    this.hold = null;
+    if (!this.pts.length) this.heard = false;
+    this.message('');
   },
 
   mute() {
+    this.endHold();
     this.listening = false;
     this.detach();
     if (this.stream) this.stream.getTracks().forEach(t => t.stop());
@@ -79,9 +90,22 @@ const Sing = {
   // iPhone: recording needs the play-and-record audio session (iOS 17+ lets us choose it).
   setSession(type) { try { if (navigator.audioSession) navigator.audioSession.type = type; } catch {} },
 
+  // The session's clock: the audio clock, carried on smoothly if the audio engine is rebuilt.
+  now() { const c = this.ctxRef || ctx; return c ? c.currentTime + this.tOff : 0; },
+
+  // Trace time: the session clock with long silences taken out (unless the tabla is playing,
+  // when real time matters for seeing the beats).
+  liveT() {
+    const real = this.now() - this.winSec / 2;
+    const tabla = typeof Tabla !== 'undefined' && Tabla.playing;
+    if (tabla || this.lastVoiced == null) return real - this.vOff;
+    return Math.min(real, this.lastVoiced + SILENCE_KEEP) - this.vOff;
+  },
+
   // Connect the microphone to the analyser (again, if the audio engine was rebuilt).
   attach() {
     const c = audio();
+    if (this.ctxRef && this.ctxRef !== c) this.tOff = this.now() - c.currentTime;
     this.detach();
     this.ctxRef = c;
     const d = Math.max(1, Math.round(c.sampleRate / 24000));
@@ -94,43 +118,48 @@ const Sing = {
     this.src.connect(this.an).connect(this.sink).connect(c.destination);
     this.data = new Float32Array(this.an.fftSize);
     this.winSec = this.an.fftSize / c.sampleRate;
-    this.lastT = -1;
   },
   detach() {
     for (const n of [this.src, this.an, this.sink]) { try { n && n.disconnect(); } catch {} }
     this.src = this.an = this.sink = null;
   },
 
-  reset() {
+  clear() {
     this.pts = [];
+    this.notes = [];
     this.raw = [];
     this.hold = null;
+    this.lastHold = null;
+    this.notesVer++;
+    this.view = null;
     this.heard = false;
-    this.message('');
+    this.lastVoiced = null;
   },
 
   // Tabla tells us when each matra sounds, to mark the beats under the trace.
   beat(t, sam, first) {
-    if (!this.on) return;
-    this.beats.push({ t, sam, first });
+    if (!this.on || ctx !== this.ctxRef) return;
+    this.beats.push({ t: t + this.tOff - this.vOff, sam, first });
+    if (this.beats.length > 6000) this.beats.splice(0, 1000);
   },
 
   // ---------- listening ----------
   frame() {
     if (!this.on) return;
     this.raf = requestAnimationFrame(() => this.frame());
-    if (this.listening && !this.frozen) {
+    if (this.listening) {
       if (ctx !== this.ctxRef) this.attach();
       const now = performance.now();
       if (now - this.lastAnalysis >= 14) { this.lastAnalysis = now; this.analyse(); }
     }
     this.draw();
+    this.renderNotes();
   },
 
   analyse() {
     const c = this.ctxRef;
     if (!c || c.state !== 'running') return;
-    const t = c.currentTime - this.winSec / 2; // the middle of the window just heard
+    const t = this.now() - this.winSec / 2; // the middle of the window just heard
     if (t <= this.lastT) return; // the audio clock hasn't moved
     this.lastT = t;
     this.an.getFloatTimeDomainData(this.data);
@@ -140,14 +169,18 @@ const Sing = {
     this.floor = Math.max(0.0003, p.rms < this.floor ? this.floor * 0.6 + p.rms * 0.4 : this.floor * 1.0004);
     this.level = p.rms;
     const voiced = p.hz > 0 && p.clarity >= 0.8 && p.rms >= Math.max(0.0015, this.floor * 2.2);
-    if (!voiced) { this.raw = []; this.silence(t); return; }
+    if (!voiced) { this.raw = []; this.silence(t - this.vOff); return; }
+    // back from a long silence: take it out of the trace's time
+    const tabla = typeof Tabla !== 'undefined' && Tabla.playing;
+    if (this.lastVoiced != null && !tabla && t - this.lastVoiced > SILENCE_KEEP) this.vOff += t - this.lastVoiced - SILENCE_KEEP;
+    this.lastVoiced = t;
 
     // Cents above your Sa, with a 3-frame median to drop single-frame glitches.
     const cents = 1200 * Math.log2(p.hz / mtof(saMidi()));
     this.raw.push(cents);
     if (this.raw.length > 3) this.raw.shift();
     const c3 = this.raw.length === 3 ? [...this.raw].sort((a, b) => a - b)[1] : cents;
-    this.addPoint(t, c3);
+    this.addPoint(t - this.vOff, c3);
   },
 
   inRaga(n) { return !info || info.all.includes(((n % 12) + 12) % 12); },
@@ -157,7 +190,7 @@ const Sing = {
     if (h && (t - h.lastT > GAP || Math.abs(c - h.note * 100) > HOLD_EXIT)) { this.endHold(); h = null; }
     const n = Math.round(c / 100);
     if (!h && Math.abs(c - n * 100) <= HOLD_TOL) {
-      h = this.hold = { note: n, start: t, lastT: t, rest: false, kind: 'pass', sum: 0, sum2: 0, k: 0 };
+      h = this.hold = { note: n, start: t, lastT: t, rest: false, kind: 'pass', sum: 0, sum2: 0, k: 0, entry: null };
     }
     const pt = { t, c, kind: 'pass' };
     this.pts.push(pt);
@@ -165,19 +198,27 @@ const Sing = {
       h.lastT = t;
       if (t - h.start >= REST_AFTER) {
         if (!h.rest) {
-          // it's a resting note after all: colour the start of it too
+          // it's a sung note after all: colour the start of it too, and write it down
           h.rest = true;
           h.kind = this.inRaga(h.note) ? 'raga' : 'off';
           for (let i = this.pts.length - 1; i >= 0 && this.pts[i].t >= h.start; i--) this.pts[i].kind = h.kind;
+          h.entry = { note: h.note, start: h.start, end: t, kind: h.kind };
+          this.notes.push(h.entry);
+          this.notesVer++;
         }
         pt.kind = h.kind;
+        h.entry.end = t;
         const dv = c - h.note * 100;
         h.sum += dv; h.sum2 += dv * dv; h.k++;
       }
     }
     if (!this.heard) { this.heard = true; this.message(''); }
-    const cut = t - SING_SECONDS - 1;
-    while (this.pts.length && this.pts[0].t < cut) this.pts.shift();
+    if (this.pts.length > KEEP_POINTS) {
+      this.pts.splice(0, 5000);
+      const t0 = this.pts[0].t;
+      const drop = this.notes.findIndex(x => x.end >= t0);
+      if (drop > 0) { this.notes.splice(0, drop); this.notesVer++; }
+    }
   },
 
   silence(t) {
@@ -195,14 +236,31 @@ const Sing = {
     if (h && h.rest && h.lastT - h.start >= SHOW_HOLD) this.lastHold = this.holdStats(h);
   },
 
+  // ---------- looking back ----------
+  live() { this.view = null; this.ui(); },
+  review(t, center) {
+    const tLive = this.liveT();
+    const first = this.pts.length ? this.pts[0].t : tLive;
+    this.view = { t: clamp(t, Math.min(tLive, first + SING_SECONDS * 0.4), tLive), center };
+    this.ui();
+  },
+  // Jump to a phrase from the transcript.
+  showPhrase(ph) {
+    const span = this.geo ? this.geo.span : 1400;
+    const lo = Math.min(...ph.notes.map(n => n.note)) * 100, hi = Math.max(...ph.notes.map(n => n.note)) * 100;
+    const len = ph.end - ph.start;
+    this.review(len < SING_SECONDS * 0.8 ? ph.end + (SING_SECONDS - len) / 2 : ph.start + SING_SECONDS * 0.9,
+      hi - lo < span * 0.8 ? (lo + hi) / 2 : lo + span * 0.35);
+  },
+
   // ---------- display ----------
   ui() {
     $('singBtn').setAttribute('aria-pressed', String(this.on));
     $('singView').hidden = !this.on;
     stage.hidden = this.on;
     document.querySelector('.navbar').classList.toggle('sing', this.on);
+    $('singLive').hidden = !this.view;
     if (!this.on && info) layout();
-    if (this.on) this.message('');
   },
 
   message(text) { this.msgText = text; },
@@ -210,6 +268,25 @@ const Sing = {
   noteLabel(n) {
     const off = ((n % 12) + 12) % 12;
     return swaraText(LETTERS[off], Math.floor(n / 12));
+  },
+
+  // The transcript along the top: every note you held, phrase by phrase.
+  renderNotes() {
+    if (this.shownVer === this.notesVer) return;
+    this.shownVer = this.notesVer;
+    const ph = [];
+    for (const n of this.notes) {
+      const cur = ph[ph.length - 1];
+      if (cur && n.start - cur.end <= PHRASE_GAP) { cur.notes.push(n); cur.end = n.end; } else ph.push({ start: n.start, end: n.end, notes: [n] });
+    }
+    // the last note's end keeps moving while it's held: read it live from the note itself
+    this.phrases = ph;
+    const el = $('singNotes');
+    el.innerHTML = ph.length
+      ? ph.map((p, i) => `<button class="sn-ph" data-ph="${i}">${p.notes.map(n => `<span${n.kind === 'off' ? ' class="off"' : ''}>${this.noteLabel(n.note)}</span>`).join(' ')}</button>`).join('')
+      : '<span class="sn-empty">The notes you sing will be written here</span>';
+    $('singClear').hidden = !ph.length;
+    if (!this.view) el.scrollLeft = el.scrollWidth;
   },
 
   draw() {
@@ -227,13 +304,12 @@ const Sing = {
     const gutter = 36, colW = clamp(W * 0.2, 120, 190), nowX = W - colW;
     $('singRead').style.width = colW + 'px';
     const pps = (nowX - gutter) / SING_SECONDS;
-    const c = this.ctxRef || ctx;
-    if (!this.frozen) this.tNow = c ? c.currentTime - this.winSec / 2 : 0;
-    const tNow = this.tNow;
+    const tLive = this.liveT();
+    const tNow = this.view ? this.view.t : tLive;
     const last = this.pts[this.pts.length - 1];
-    const live = last && tNow - last.t < 0.15 && !this.frozen ? last : null;
+    const live = this.listening && last && tLive - last.t < 0.15 ? last : null;
 
-    // Follow the voice up and down, keeping it away from the edges.
+    // Follow the voice up and down, keeping it away from the edges (or wherever you've dragged to).
     const span = clamp(H / 17, 12, 26) * 100;
     if (live) {
       const m = span * 0.2;
@@ -243,11 +319,14 @@ const Sing = {
     this.target = clamp(this.target, -2400, 3600);
     const fNow = performance.now(), dt = Math.min(0.1, (fNow - (this.lastFrame || fNow)) / 1000);
     this.lastFrame = fNow;
-    this.center += (this.target - this.center) * Math.min(1, dt * 5);
+    if (this.view) this.center = this.view.center;
+    else this.center += (this.target - this.center) * Math.min(1, dt * 5);
     const yOf = cents => H / 2 - (cents - this.center) / span * H;
+    const xOf = t => nowX - (tNow - t) * pps;
+    this.geo = { pps, span, H, nowX };
 
     // Swara lines: the raga's notes; Sa in saffron; faint hairlines for notes outside the raga.
-    const r = currentRaga(), restNote = this.hold && this.hold.rest ? this.hold.note : null;
+    const r = currentRaga(), restNote = !this.view && this.hold && this.hold.rest ? this.hold.note : null;
     g.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     g.textAlign = 'right';
     g.textBaseline = 'middle';
@@ -265,42 +344,41 @@ const Sing = {
         const strong = !r.isFree && !r.isThaat && (r.vadi === letter || r.samvadi === letter);
         g.strokeStyle = `rgba(236, 234, 228, ${strong ? 0.22 : 0.13})`; g.lineWidth = 1;
       }
-      if (!inR && !on) {
-        g.beginPath(); g.moveTo(gutter, y); g.lineTo(nowX, y); g.stroke();
-        continue;
-      }
       g.beginPath(); g.moveTo(gutter, y); g.lineTo(nowX, y); g.stroke();
+      if (!inR && !on) continue;
       g.fillStyle = on ? (this.hold.kind === 'off' ? TRACE.off : TRACE.raga) : isSa ? TRACE.raga : 'rgba(236, 234, 228, .6)';
       g.fillText(this.noteLabel(n), gutter - 8, y);
     }
 
     // Tabla matras: sam strongest, the start of each vibhag a little stronger.
-    const lat = c ? (c.outputLatency || 0) : 0;
-    if (!this.frozen) {
-      const tabla = typeof Tabla !== 'undefined' && Tabla.playing;
-      this.beats = this.beats.filter(b => b.t + lat > tNow - SING_SECONDS - 1 && (tabla || b.t + lat <= tNow));
-    }
+    const lat = this.ctxRef ? (this.ctxRef.outputLatency || 0) : 0;
+    const tabla = typeof Tabla !== 'undefined' && Tabla.playing;
+    if (!tabla) while (this.beats.length && this.beats[this.beats.length - 1].t + lat > tLive) this.beats.pop();
     for (const b of this.beats) {
-      const x = nowX - (tNow - (b.t + lat)) * pps;
+      const x = xOf(b.t + lat);
       if (x < gutter || x > nowX) continue;
       g.strokeStyle = b.sam ? 'rgba(242, 163, 58, .35)' : b.first ? 'rgba(236, 234, 228, .14)' : 'rgba(236, 234, 228, .06)';
       g.lineWidth = b.sam ? 2 : 1;
       g.beginPath(); g.moveTo(Math.round(x) + 0.5, 0); g.lineTo(Math.round(x) + 0.5, H); g.stroke();
     }
 
-    // now line
-    g.strokeStyle = 'rgba(236, 234, 228, .1)'; g.lineWidth = 1;
+    // now line (live) / edge of what you're looking at
+    g.strokeStyle = this.view ? 'rgba(236, 234, 228, .05)' : 'rgba(236, 234, 228, .1)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(nowX + 0.5, 0); g.lineTo(nowX + 0.5, H); g.stroke();
 
-    // The trace: grey while moving, saffron resting on a raga note, red resting outside the raga.
+    // The trace: grey while moving, saffron on a raga note, red on a note outside the raga.
+    const tFrom = tNow - SING_SECONDS - 0.2;
+    let lo = 0, hi = this.pts.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.pts[mid].t < tFrom) lo = mid + 1; else hi = mid; }
     g.save();
     g.beginPath(); g.rect(gutter, 0, nowX - gutter + 6, H); g.clip();
     g.lineWidth = 3; g.lineJoin = 'round'; g.lineCap = 'round';
-    let prev = null, color = null;
+    let prev = lo > 0 ? { p: this.pts[lo - 1], x: xOf(this.pts[lo - 1].t), y: yOf(this.pts[lo - 1].c) } : null, color = null;
     const flush = () => { if (color) g.stroke(); };
-    for (const p of this.pts) {
-      const x = nowX - (tNow - p.t) * pps, y = yOf(p.c);
-      if (x < gutter - 10) { prev = { p, x, y }; continue; }
+    for (let i = lo; i < this.pts.length; i++) {
+      const p = this.pts[i];
+      if (p.t > tNow + 0.2) break;
+      const x = xOf(p.t), y = yOf(p.c);
       const col = TRACE[p.kind];
       if (prev && p.t - prev.p.t <= GAP) {
         if (col !== color) { flush(); g.beginPath(); g.strokeStyle = color = col; g.moveTo(prev.x, prev.y); }
@@ -313,8 +391,24 @@ const Sing = {
       prev = { p, x, y };
     }
     flush();
+
+    // The sung notes, written over the trace where each one starts.
+    g.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    g.textAlign = 'left';
+    g.textBaseline = 'bottom';
+    let lastX = -1e9, lastY = 0;
+    for (const n of this.notes) {
+      if (n.end < tFrom) continue;
+      if (n.start > tNow) break;
+      const x = Math.max(gutter + 2, xOf(n.start)), y = yOf(n.note * 100) - 7;
+      if (x - lastX < 16 && Math.abs(y - lastY) < 14) continue;
+      g.fillStyle = n.kind === 'off' ? TRACE.off : 'rgba(236, 234, 228, .85)';
+      g.fillText(this.noteLabel(n.note), x, y);
+      lastX = x; lastY = y;
+    }
     g.restore();
-    if (live) {
+
+    if (live && !this.view) {
       const y = yOf(live.c), col = TRACE[live.kind];
       g.fillStyle = col;
       g.beginPath(); g.arc(nowX, y, 5.5, 0, 7); g.fill();
@@ -347,13 +441,13 @@ const Sing = {
     } else {
       read.classList.add('idle');
       read.classList.remove('off');
-      if (!this.frozen) $('srNeedle').style.left = '50%';
+      $('srNeedle').style.left = '50%';
     }
 
     // Bottom bar: level, then a hint, an error, or how the last held note went.
     $('singLevel').style.width = clamp((20 * Math.log10(Math.max(this.level, 1e-5)) + 60) / 50 * 100, 0, 100) + '%';
     let msg = this.msgText;
-    if (!msg && this.frozen) msg = 'Paused · tap the trace to go on';
+    if (!msg && this.view) msg = 'Looking back · drag to move through what you sang · Live to return';
     else if (!msg && this.listening && !this.heard) msg = 'Sing “aa” on Sa. Earphones keep the tanpura out of the mic.';
     else if (!msg && this.lastHold) {
       const L = this.lastHold, m = Math.round(L.mean);
@@ -364,12 +458,42 @@ const Sing = {
 };
 
 $('singBtn').onclick = () => Sing.toggle();
-// Tap the trace to pause it and look at what you just sang.
-$('singView').addEventListener('pointerdown', () => {
-  if (!Sing.listening) return;
-  Sing.frozen = !Sing.frozen;
-  if (!Sing.frozen) { Sing.hold = null; Sing.raw = []; }
+$('singLive').onclick = () => Sing.live();
+$('singClear').onclick = () => Sing.clear();
+$('singNotes').addEventListener('click', e => {
+  const b = e.target.closest('[data-ph]');
+  const ph = b && Sing.phrases[Number(b.dataset.ph)];
+  if (ph) Sing.showPhrase(ph);
 });
+
+// Drag the trace to look back through what you sang (sideways = time, up/down = pitch);
+// a tap stops it where it is, or goes back to live.
+(() => {
+  const area = $('singStage');
+  let drag = null;
+  area.addEventListener('pointerdown', e => {
+    if (!Sing.geo) return;
+    area.setPointerCapture(e.pointerId);
+    const tLive = Sing.liveT();
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, t: Sing.view ? Sing.view.t : tLive, center: Sing.center };
+  });
+  area.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 8) return;
+    drag.moved = true;
+    const { pps, span, H } = Sing.geo;
+    Sing.review(drag.t - dx / pps, drag.center + dy / H * span);
+  });
+  const end = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!drag.moved) { if (Sing.view) Sing.live(); else if (Sing.pts.length) Sing.review(drag.t, drag.center); }
+    drag = null;
+  };
+  area.addEventListener('pointerup', end);
+  area.addEventListener('pointercancel', end);
+})();
+
 // Coming back to the app: the phone may have stopped the microphone meanwhile.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden || !Sing.on || !Sing.listening) return;

@@ -82,13 +82,20 @@
 
     <!-- Sing: your voice's pitch over the raga's swaras -->
     <section id="singView" aria-label="Your pitch" hidden>
-      <canvas id="singCanvas"></canvas>
-      <div id="singRead" class="sing-read idle">
-        <span id="srSw" class="sr-sw">–</span>
-        <span id="srName" class="sr-name"></span>
-        <span class="sr-meter" aria-hidden="true"><span class="sr-mid"></span><span id="srNeedle" class="sr-needle"></span></span>
-        <span id="srCents" class="sr-cents"></span>
-        <span id="srHold" class="sr-hold"></span>
+      <div class="sing-notes">
+        <div id="singNotes" class="sn-list" aria-label="Notes you sang"></div>
+        <button id="singLive" class="sn-btn live" hidden>Live</button>
+        <button id="singClear" class="sn-btn" hidden>Clear</button>
+      </div>
+      <div id="singStage" class="sing-stage">
+        <canvas id="singCanvas"></canvas>
+        <div id="singRead" class="sing-read idle">
+          <span id="srSw" class="sr-sw">–</span>
+          <span id="srName" class="sr-name"></span>
+          <span class="sr-meter" aria-hidden="true"><span class="sr-mid"></span><span id="srNeedle" class="sr-needle"></span></span>
+          <span id="srCents" class="sr-cents"></span>
+          <span id="srHold" class="sr-hold"></span>
+        </div>
       </div>
     </section>
 
