@@ -224,8 +224,10 @@ const sampleHz = s => 440 * Math.pow(2, (s.midi - 69) / 12 + (s.cents || 0) / 12
 const rateFor = (m, s) => mtof(m) / sampleHz(s);
 const SAMPLE_LEVEL = 1.0;
 const BLEND = 0.15;     // semitones either side of the switch point between two recordings where they're blended
-const XFADE = 0.08;     // a change of recording always takes at least this long (s): no phasey flicker
+const XFADE = 0.03;     // a change of recording always takes at least this long (s): no phasey flicker, yet
+                        // short enough that a recording isn't heard pitch-shifted far from its own note
 const GAIN_STEP = 0.004; // spacing (s) of the scheduled blend points
+const STEP_XF = 0.02;    // a key change (no glide): old and new note overlap this long (s), like legato on a real harmonium
 
 // There's a recording for (nearly) every semitone, so a note is shifted by at most half a
 // semitone and every exact note plays its own recording. Between recordings a and b the switch
@@ -368,8 +370,41 @@ function sampledVoice(midi, quick) {
   }
   goTo(midi, 0, true);
 
+  // A key change, as on a real harmonium: no glide. The sounding recordings keep their pitch and
+  // fade out while the new note's own recordings (already in their steady tone) fade in, over
+  // STEP_XF with equal power (two reeds briefly sounding together: legato, no gap, no slide).
+  function jumpTo(m) {
+    const tt = c.currentTime, mNow = pitchAt(tt);
+    if (Math.abs(m - mNow) < 0.05) { goTo(m, 0.005, false); return; }
+    const n = Math.max(2, Math.round(STEP_XF / 0.002));
+    for (const [i, L] of layers) {
+      const g0 = gainAt(L, tt);
+      clearTimeout(L.kill);
+      L.src.playbackRate.cancelScheduledValues(tt);
+      L.src.playbackRate.setValueAtTime(rateFor(mNow, Harm.list[i]), tt);
+      L.g.gain.cancelScheduledValues(tt);
+      L.g.gain.setValueAtTime(g0, tt);
+      for (let k = 1; k <= n; k++) L.g.gain.linearRampToValueAtTime(g0 * Math.cos(Math.PI / 2 * k / n), tt + STEP_XF * k / n);
+      L.src.stop(tt + STEP_XF + 0.05);
+    }
+    layers.clear();
+    P = { t: tt, v: m, m, tc: 1e-4 };
+    for (const [k, w] of Object.entries(mixGains(sampleMix(m)))) {
+      const s = Harm.list[k], L = layerFor(+k, tt, s.steady || s.loopStart);
+      L.src.playbackRate.setValueAtTime(rateFor(m, s), tt);
+      const pts = [[tt, 0]];
+      for (let j = 1; j <= n; j++) {
+        const at = tt + STEP_XF * j / n, v = w * Math.sin(Math.PI / 2 * j / n);
+        L.g.gain.linearRampToValueAtTime(v, at);
+        pts.push([at, v]);
+      }
+      L.pts = pts;
+    }
+  }
+
   return {
     setPitch(m, tc) { if (!stopped) goTo(m, tc, false); },
+    jumpTo(m) { if (!stopped) jumpTo(m); },
     articulate() {
       if (stopped) return;
       const tt = c.currentTime;
@@ -437,6 +472,7 @@ function synthVoice(midi, quick) {
         o.frequency.setTargetAtTime(ff * ratio, tt, tc);
       }
     },
+    jumpTo(m) { this.setPitch(m, 0.002); },
     // A tiny dip in volume, so consecutive notes in a fast run are heard as separate notes.
     articulate() {
       if (stopped) return;
@@ -804,12 +840,15 @@ const SPEED_WINDOW = 60;    // ms of finger history used to judge speed
 const UNLOCK_DIST = 0.15;   // how far (in pads) the finger must move before a slide starts
 const SETTLE_SPEED = 1.0;   // pads per second; slower than this (for SETTLE_MS) = holding a note
 const ARRIVE_SPEED = 1.5;   // reaching a pad's middle slower than this (settling, not a slow meend) locks onto it at once
+const SNAP_SPEED = 10;      // pads per second; a swipe faster than this steps through the notes (grace notes, as on a
+                            // real harmonium) instead of gliding; it glides again once slower than 60% of this
 function lockOn(tch, idx, off, p) {
   clearTimeout(tch.settle);
   tch.locked = true;
   tch.lockP = p;
   tch.lockIdx = idx;
   tch.slowSince = 0;
+  tch.snapping = false;
   tch.voice.setPitch(offMidi(idx, off), 0.005); // land exactly on the note, at once
   tch.idx = idx; tch.off = off;
   showHeld(tch, elFor(idx, off));
@@ -895,7 +934,9 @@ stage.addEventListener('pointerdown', e => {
 // first, the sound jumps straight to the second finger's note. Only for a note held a moment
 // (PULL_MIN_HOLD_MS), so overlapping fingers in a fast taan still play separate notes.
 // Settings can switch the second finger to play its own note instead (chords).
-const PULL_MIN_HOLD_MS = 250, PULL_TC = 0.03, PULL_MIN_MS = 100, RELEASE_TC = 0.05;
+const PULL_MIN_HOLD_MS = 250, PULL_TC = 0.03, PULL_MIN_MS = 100, RELEASE_TC = 0.04;
+// Glide a voice to m — or, with Settings > Steps, change note without any glide.
+const moveVoice = (v, m, tc) => S.slide === 'steps' ? v.jumpTo(m) : v.setPitch(m, tc);
 function pullHost(tch, idx, off) {
   let host = null;
   const now = performance.now();
@@ -913,7 +954,7 @@ function startPull(tch, host, idx, off) {
   tch.pullStart = performance.now();
   (host.pulls || (host.pulls = [])).push(tch);
   clearTimeout(host.returnTimer);
-  host.voice.setPitch(offMidi(idx, off), PULL_TC);
+  moveVoice(host.voice, offMidi(idx, off), PULL_TC);
   showHeld(tch, elFor(idx, off));
 }
 function endPull(tch) {
@@ -927,7 +968,7 @@ function endPull(tch) {
     if (!host.voice || !touches.has(host.id)) return;
     const other = host.pulls[host.pulls.length - 1];
     const target = other ? offMidi(other.idx, other.off) : offMidi(host.idx, host.off);
-    host.voice.setPitch(target, other ? PULL_TC : RELEASE_TC);
+    moveVoice(host.voice, target, other ? PULL_TC : RELEASE_TC);
   }, wait);
 }
 
@@ -967,7 +1008,7 @@ window.addEventListener('pointermove', e => {
     if (i === tch.idx && o === tch.off) return;
     tch.dir = Math.sign(i - tch.idx);
     tch.idx = i; tch.off = o;
-    tch.host.voice.setPitch(offMidi(i, o), MEEND_SMOOTH);
+    moveVoice(tch.host.voice, offMidi(i, o), MEEND_SMOOTH);
     showHeld(tch, elFor(i, o));
     return;
   }
@@ -989,7 +1030,7 @@ window.addEventListener('pointermove', e => {
   if (S.slide === 'steps') {
     const off = variantOf(curIdx, tch);
     if (curIdx === tch.idx && off === tch.off) return;
-    tch.voice.setPitch(offMidi(curIdx, off), 0.003);
+    tch.voice.jumpTo(offMidi(curIdx, off));
     tch.idx = curIdx; tch.off = off;
     showHeld(tch, elFor(curIdx, off));
     return;
@@ -1044,9 +1085,17 @@ window.addEventListener('pointermove', e => {
     tch.slowSince = 0;
   }
 
-  // A slide is always a meend (taans are tapped): one continuous curve that leans into
-  // each passing note, e.g. P→R in Yaman flows P–M–G–R; the note you land on locks exactly.
-  tch.voice.setPitch(meendPitch(p, tch), MEEND_SMOOTH);
+  // A quick swipe steps through the notes it passes, the way a harmonium player suggests a
+  // meend with grace notes; a fast continuous glide only sounds like a siren.
+  if (tch.speed > (tch.snapping ? SNAP_SPEED * 0.6 : SNAP_SPEED)) {
+    if (!tch.snapping || changed) tch.voice.jumpTo(offMidi(idx, off));
+    tch.snapping = true;
+  } else {
+    // A slower slide is a meend: one continuous curve that leans into each passing note,
+    // e.g. P→R in Yaman flows P–M–G–R; the note you land on locks exactly.
+    tch.snapping = false;
+    tch.voice.setPitch(meendPitch(p, tch), MEEND_SMOOTH);
+  }
   tch.idx = idx; tch.off = off;
   showHeld(tch, elFor(idx, off));
   // fallback: if events stop entirely, also lock on
@@ -1081,7 +1130,7 @@ function endTouch(e) {
     const heir = tch.pulls[tch.pulls.length - 1];
     heir.puller = false; heir.host = null;
     heir.voice = tch.voice; tch.voice = null;
-    heir.voice.setPitch(offMidi(heir.idx, heir.off), 0.005); // jump straight to the second note
+    heir.voice.jumpTo(offMidi(heir.idx, heir.off)); // jump straight to the second note
     heir.locked = true; heir.lockP = heir.idx + 0.5;
     heir.p0 = heir.lockP; heir.shift = 0; heir.hist = [];
     heir.pulls = tch.pulls.filter(p => p !== heir);
@@ -1599,7 +1648,7 @@ function playPhrase(str, hooks = {}) {
       return;
     }
     const midi = saMidi() + x.oct * 12 + x.off;
-    if (pl.voice) pl.voice.setPitch(midi, 0.012);
+    if (pl.voice) pl.voice.jumpTo(midi); // a harmonium changes key, it doesn't slide
     else pl.voice = harmoniumVoice(midi);
     const pi = padIndexFor(x.oct, x.off);
     if (pi >= 0) { showHeld(pl.held, elFor(pi, x.off)); keepPadVisible(pi, true); }
