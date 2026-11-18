@@ -58,7 +58,7 @@ function ragaInfo(r) {
 // =====================================================================
 // Settings (remembered)
 // =====================================================================
-const DEFAULTS = { taal: 'Teentaal', tablaVol: 0.8, saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', second: 'pull', first: null, extra: null, bpm: 80, balance: 60 };
+const DEFAULTS = { taal: 'Teentaal', tablaVol: 0.8, bayanVol: 0.7, saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', second: 'pull', first: null, extra: null, bpm: 80, balance: 60 };
 const S = Object.assign({}, DEFAULTS, (() => { try { return JSON.parse(localStorage.getItem('riyaz') || '{}'); } catch { return {}; } })());
 if (!ALL_RAGAS.has(S.raga)) S.raga = DEFAULTS.raga;
 if (S.first === 'auto') S.first = null;
@@ -1172,7 +1172,7 @@ async function decodeTabla() {
 }
 
 // Mix level of each stroke type (the recordings are loudness-matched, so this sets the balance).
-const TABLA_CLASS_GAIN = { na: 1, tin: 0.95, tun: 0.85, te: 0.55, re: 0.45, ge: 1.05, ke: 0.5, dha: 1.1, dhin: 1.1 };
+const TABLA_CLASS_GAIN = { na: 1, tin: 0.95, tun: 0.85, te: 0.55, re: 0.45, ge: 0.85, ke: 0.5, dha: 1.1, dhin: 1.1 };
 
 // Retune a dayan recording (tuned to `hz`) to the player's Sa — or to Pa when Sa would need
 // a big shift (tabla players do this too). Returns semitones of shift.
@@ -1204,13 +1204,15 @@ const Tabla = {
   },
 
   // Play one recording. drum: 'd' dayan, 'b' bayan, 'db' both (a full two-handed stroke).
-  play(s, t, vel) {
+  play(s, t, vel, damp) {
     const src = ctx.createBufferSource();
     src.buffer = s.buf;
     const shift = s.drum === 'b' ? 0 : dayanShift(s.hz);
     src.playbackRate.value = Math.pow(2, shift / 12);
     const g = ctx.createGain();
-    g.gain.value = vel * (TABLA_CLASS_GAIN[s.cls] || 1);
+    g.gain.value = vel * (TABLA_CLASS_GAIN[s.cls] || 1) * (s.drum === 'b' ? S.bayanVol / 0.7 : 1);
+    // inner-beat bayan strokes are damped after a moment, like a wrist resting on the drum
+    if (damp) g.gain.setTargetAtTime(0, t + 0.3, 0.18);
     const tone = ctx.createBiquadFilter(); // harder strokes sound a little brighter
     tone.type = 'highshelf'; tone.frequency.value = 3000; tone.gain.value = (vel - 1) * 8;
     src.connect(tone).connect(g).connect(tablaBus);
@@ -1236,18 +1238,21 @@ const Tabla = {
     // otherwise layer a retuned dayan stroke over an untouched bayan stroke.
     const combo = st.b === 'ge' ? (st.d === 'na' ? 'dha' : st.d === 'tin' ? 'dhin' : null) : null;
     if (combo && Math.random() < 0.2) {
-      const s = this.pick(combo, x => Math.abs(dayanShift(x.hz)) <= 2.5);
+      const s = first ? this.pick(combo, x => Math.abs(dayanShift(x.hz)) <= 2.5) : null; // only on strong beats
       if (s) { this.play(s, t, vel); return; }
     }
     if (st.d) { const s = this.pick(st.d); if (s) this.play(s, t, vel); }
     if (st.b) {
       // Choose the bayan Ge by context: long falling/steady Ge on strong beats and slow lay,
       // short Ge in fast lay.
-      const ringing = st.d === 'tin'; // Dhin needs a long open Ge, never a short or rising one
-      const want = ringing ? ['fall', 'flat'] : beat < 0.3 ? ['short', 'fall'] : first ? ['fall', 'flat'] : ['fall', 'flat'];
+      // The bayan isn't struck full-on every beat: it rings fully on sam / the start of a
+      // section, and is lighter and damped in between. Dhin always gets an open (not short or
+      // rising) Ge; the longest, steadiest Ge recordings only on sam.
+      const want = first ? ['fall', 'flat'] : st.d === 'tin' ? ['fall'] : beat < 0.3 ? ['short', 'fall'] : ['fall'];
       const s = this.pick(st.b, x => st.b !== 'ge' || want.includes(x.ge));
+      const level = first ? 1 : 0.62;
       // bayan lands a hair before/after the dayan, like real hands
-      if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * (st.accent ? 1.15 : 1));
+      if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * level * (st.accent ? 1.15 : 1), !first && s.cls === 'ge');
     }
   },
 
@@ -1701,8 +1706,10 @@ function renderTablaSettings() {
     b.onclick = () => { S.taal = b.dataset.taal; save(); renderTablaSettings(); updateTablaUI(); Tabla.restart(); };
   });
   $('tablaVol').value = Math.round(S.tablaVol * 100);
+  $('bayanVol').value = Math.round(S.bayanVol * 100);
 }
 
+$('bayanVol').addEventListener('input', e => { S.bayanVol = Number(e.target.value) / 100; save(); });
 $('tablaVol').addEventListener('input', e => {
   S.tablaVol = Number(e.target.value) / 100; save();
   if (tablaBus) tablaBus.gain.value = S.tablaVol;
