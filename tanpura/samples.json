@@ -1,0 +1,34 @@
+[
+ {
+  "file": "Cs2.wav",
+  "hz": 69.299,
+  "midi": 37,
+  "cents": 0.1,
+  "dur": 7.0,
+  "source": "https://freesound.org/s/416597/"
+ },
+ {
+  "file": "Gs2.wav",
+  "hz": 103.662,
+  "midi": 44,
+  "cents": -2.7,
+  "dur": 6.6,
+  "source": "https://freesound.org/s/416598/"
+ },
+ {
+  "file": "As2.wav",
+  "hz": 116.324,
+  "midi": 46,
+  "cents": -3.2,
+  "dur": 4.9,
+  "source": "https://freesound.org/s/416606/"
+ },
+ {
+  "file": "Cs3.wav",
+  "hz": 138.241,
+  "midi": 49,
+  "cents": -4.4,
+  "dur": 5.9,
+  "source": "https://freesound.org/s/416605/"
+ }
+]
