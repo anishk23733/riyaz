@@ -784,18 +784,20 @@ const elFor = (i, off) => { const p = pads[i]; return !p.split ? p.el : off === 
 // middle holds the exact note and the pitch curves smoothly (slow–fast–slow) between pads,
 // so P→R in Yaman is one unbroken glide that brushes M and G on the way. The moment the
 // finger pauses, the pitch eases onto the nearest raga note, so it never rests off-raga.
-const HOLD = 0.07;          // while sliding, passing notes are only brushed (tiny hold), not stepped on
-const MEEND_SMOOTH = 0.055; // smoothing (s) — removes finger jitter so the curve sounds sung
-const SETTLE_MS = 60;       // slow/still this long and the pitch locks onto the nearest note
-const SPEED_WINDOW = 100;   // ms of finger history used to judge speed
+const HOLD = 0.1;           // while sliding, passing notes are only brushed (small hold), not stepped on
+const MEEND_SMOOTH = 0.03;  // smoothing (s) — removes finger jitter; small so pitch stays with the finger
+const SETTLE_MS = 40;       // slow/still this long and the pitch locks onto the nearest note
+const SPEED_WINDOW = 60;    // ms of finger history used to judge speed
 const UNLOCK_DIST = 0.15;   // how far (in pads) the finger must move before a slide starts
-const SETTLE_SPEED = 0.8;   // pads per second; slower than this (for SETTLE_MS) = holding a note
+const SETTLE_SPEED = 1.0;   // pads per second; slower than this (for SETTLE_MS) = holding a note
+const ARRIVE_SPEED = 1.5;   // reaching a pad's middle slower than this (settling, not a slow meend) locks onto it at once
 function lockOn(tch, idx, off, p) {
   clearTimeout(tch.settle);
   tch.locked = true;
   tch.lockP = p;
+  tch.lockIdx = idx;
   tch.slowSince = 0;
-  tch.voice.setPitch(offMidi(idx, off), 0.035);
+  tch.voice.setPitch(offMidi(idx, off), 0.005); // land exactly on the note, at once
   tch.idx = idx; tch.off = off;
   showHeld(tch, elFor(idx, off));
 }
@@ -880,7 +882,7 @@ stage.addEventListener('pointerdown', e => {
 // first, the sound jumps straight to the second finger's note. Only for a note held a moment
 // (PULL_MIN_HOLD_MS), so overlapping fingers in a fast taan still play separate notes.
 // Settings can switch the second finger to play its own note instead (chords).
-const PULL_MIN_HOLD_MS = 250, PULL_TC = 0.045, PULL_MIN_MS = 110, RELEASE_TC = 0.075;
+const PULL_MIN_HOLD_MS = 250, PULL_TC = 0.03, PULL_MIN_MS = 100, RELEASE_TC = 0.05;
 function pullHost(tch, idx, off) {
   let host = null;
   const now = performance.now();
@@ -1012,6 +1014,12 @@ window.addEventListener('pointermove', e => {
   const idx = nearestPad(p), off = variantOf(idx, tch);
   const changed = idx !== tch.idx || off !== tch.off;
 
+  // Arriving: the finger reaches a pad's middle and isn't rushing past -> that note, exactly, now.
+  if (Math.abs(p - (idx + 0.5)) < HOLD && tch.speed < ARRIVE_SPEED && idx !== tch.lockIdx) {
+    lockOn(tch, idx, off, p);
+    tch.lockIdx = idx;
+    return;
+  }
   if (tch.speed < SETTLE_SPEED) {
     // slowing down: once slow for a moment, lock onto the nearest raga note
     if (!tch.slowSince) tch.slowSince = now;
@@ -1212,7 +1220,7 @@ const Tabla = {
     const g = ctx.createGain();
     g.gain.value = vel * (TABLA_CLASS_GAIN[s.cls] || 1) * (s.drum === 'b' ? S.bayanVol / 0.7 : 1);
     // inner-beat bayan strokes are damped after a moment, like a wrist resting on the drum
-    if (damp) g.gain.setTargetAtTime(0, t + 0.3, 0.18);
+    if (damp) g.gain.setTargetAtTime(0, t + damp, 0.18);
     const tone = ctx.createBiquadFilter(); // harder strokes sound a little brighter
     tone.type = 'highshelf'; tone.frequency.value = 3000; tone.gain.value = (vel - 1) * 8;
     src.connect(tone).connect(g).connect(tablaBus);
@@ -1232,7 +1240,7 @@ const Tabla = {
   },
 
   // One bol (e.g. Dha) at time t.
-  stroke(st, t, vel, beat, first) {
+  stroke(st, t, vel, beat, first, ringOn) {
     if (!st) return;
     // Dha / Dhin: use a real two-handed recording when the dayan needs only a small retune,
     // otherwise layer a retuned dayan stroke over an untouched bayan stroke.
@@ -1252,7 +1260,9 @@ const Tabla = {
       const s = this.pick(st.b, x => st.b !== 'ge' || want.includes(x.ge));
       const level = first ? 1 : 0.62;
       // bayan lands a hair before/after the dayan, like real hands
-      if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * level * (st.accent ? 1.15 : 1), !first && s.cls === 'ge');
+      // damp inner-beat Ge — but let it ring on into a rest; ring longer at slow tempo
+      const damp = !first && !ringOn && s.cls === 'ge' ? Math.max(0.3, beat * 0.45) : 0;
+      if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * level * (st.accent ? 1.15 : 1), damp);
     }
   },
 
@@ -1277,7 +1287,10 @@ const Tabla = {
       const at = n > 2 ? clusterStart + k * sub : p.frac * beat;
       const jitter = i === 0 && k === 0 ? 0 : Math.max(-0.008, Math.min(0.008, this.walk + (Math.random() - 0.5) * 0.006));
       const v = acc * (k === 0 ? 1 : n > 2 ? 0.7 : 0.85) * (0.94 + Math.random() * 0.12);
-      this.stroke(p.stroke, t + at + jitter, v, beat, vb.first && k === 0);
+      // a stroke followed by a rest (e.g. Deepchandi's "Dhin –") rings on through it
+      const nextEntry = tl.theka[(i + 1) % tl.matras];
+      const ringOn = k === n - 1 && (nextEntry === '-' || nextEntry.startsWith('-'));
+      this.stroke(p.stroke, t + at + jitter, v, beat, vb.first && k === 0, ringOn);
     });
     this.queue.push({ time: t, matra: i, entry, mark: vb.first ? vb.mark : null, khali: String(tl.marks[vb.v]) === '0' });
   },
