@@ -58,7 +58,7 @@ function ragaInfo(r) {
 // =====================================================================
 // Settings (remembered)
 // =====================================================================
-const DEFAULTS = { saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', first: null, extra: null, bpm: 60, balance: 60 };
+const DEFAULTS = { saPc: 1, saOct: 3, cents: 0, raga: 'Yaman', slide: 'glide', second: 'pull', first: null, extra: null, bpm: 60, balance: 60 };
 const S = Object.assign({}, DEFAULTS, (() => { try { return JSON.parse(localStorage.getItem('riyaz') || '{}'); } catch { return {}; } })());
 if (!ALL_RAGAS.has(S.raga)) S.raga = DEFAULTS.raga;
 if (S.first === 'auto') S.first = null;
@@ -634,10 +634,9 @@ const elFor = (i, off) => { const p = pads[i]; return !p.split ? p.el : off === 
 // middle holds the exact note and the pitch curves smoothly (slow–fast–slow) between pads,
 // so P→R in Yaman is one unbroken glide that brushes M and G on the way. The moment the
 // finger pauses, the pitch eases onto the nearest raga note, so it never rests off-raga.
-const HOLD = 0.2;           // part of each pad (either side of its middle) that holds the exact note
-const MEEND_SMOOTH = 0.045; // smoothing (s) — removes finger jitter so the curve sounds sung
+const HOLD = 0.07;          // while sliding, passing notes are only brushed (tiny hold), not stepped on
+const MEEND_SMOOTH = 0.055; // smoothing (s) — removes finger jitter so the curve sounds sung
 const SETTLE_MS = 60;       // slow/still this long and the pitch locks onto the nearest note
-const TAAN_SPEED = 5;       // pads per second; faster than this = taan (crisp notes, no glide)
 const SPEED_WINDOW = 100;   // ms of finger history used to judge speed
 const UNLOCK_DIST = 0.15;   // how far (in pads) the finger must move before a slide starts
 const SETTLE_SPEED = 0.8;   // pads per second; slower than this (for SETTLE_MS) = holding a note
@@ -716,10 +715,52 @@ stage.addEventListener('pointerdown', e => {
   if (pads[idx].split) { tch.choice = tch.yHalf === 'hi' ? pads[idx].hi : pads[idx].lo; tch.choiceIdx = idx; }
   const off = variantOf(idx, tch);
   tch.off = off;
+  const host = S.second === 'pull' ? pullHost(tch) : null;
+  if (host) { startPull(tch, host, idx, off); return; }
   handOver();
   tch.voice = harmoniumVoice(offMidi(idx, off));
   showHeld(tch, elFor(idx, off));
 });
+
+// ---------- Pull (second finger) ----------
+// Holding a note and pressing another pad pulls the held note there with a meend (M held,
+// press P: M glides up to P); lifting that finger lets it glide gently back. A very quick tap
+// still completes the pull before returning. Only for a note held a moment (PULL_MIN_HOLD_MS),
+// so overlapping fingers in a fast taan still play separate notes.
+const PULL_MIN_HOLD_MS = 250, PULL_TC = 0.045, PULL_MIN_MS = 110, RELEASE_TC = 0.075;
+function pullHost(tch) {
+  let host = null;
+  const now = performance.now();
+  for (const t of touches.values()) {
+    if (t === tch || !t.voice || t.puller || now - t.t0 < PULL_MIN_HOLD_MS) continue;
+    if (!host || t.t0 > host.t0) host = t;
+  }
+  return host;
+}
+function startPull(tch, host, idx, off) {
+  tch.puller = true;
+  tch.host = host;
+  tch.idx = idx; tch.off = off;
+  tch.pullStart = performance.now();
+  (host.pulls || (host.pulls = [])).push(tch);
+  clearTimeout(host.returnTimer);
+  host.voice.setPitch(offMidi(idx, off), PULL_TC);
+  showHeld(tch, elFor(idx, off));
+}
+function endPull(tch) {
+  const host = tch.host;
+  if (!host) { showHeld(tch, null); return; }
+  host.pulls = host.pulls.filter(t => t !== tch);
+  const wait = Math.max(0, PULL_MIN_MS - (performance.now() - tch.pullStart));
+  clearTimeout(host.returnTimer);
+  host.returnTimer = setTimeout(() => {
+    showHeld(tch, null);
+    if (!host.voice || !touches.has(host.id)) return;
+    const other = host.pulls[host.pulls.length - 1];
+    const target = other ? offMidi(other.idx, other.off) : offMidi(host.idx, host.off);
+    host.voice.setPitch(target, other ? PULL_TC : RELEASE_TC);
+  }, wait);
+}
 
 window.addEventListener('pointermove', e => {
   const tch = touches.get(e.pointerId);
@@ -748,7 +789,21 @@ window.addEventListener('pointermove', e => {
     }
   }
 
+  if (tch.puller) {
+    // sliding the pulling finger keeps pulling the held note along with it
+    if (!tch.host || !tch.host.voice) return;
+    const r = (ax(e) - stageLeft + scrollX) / step;
+    updateYHalf(tch, e);
+    const i = padAt(r, tch.idx), o = variantOf(i, tch);
+    if (i === tch.idx && o === tch.off) return;
+    tch.dir = Math.sign(i - tch.idx);
+    tch.idx = i; tch.off = o;
+    tch.host.voice.setPitch(offMidi(i, o), MEEND_SMOOTH);
+    showHeld(tch, elFor(i, o));
+    return;
+  }
   if (!tch.voice) return;
+  if (tch.pulls && tch.pulls.length) return; // while being pulled, the held finger's wobble is ignored
   const raw = (ax(e) - stageLeft + scrollX) / step;
   if (Math.abs(raw - tch.lastRaw) > 0.03) { tch.dir = Math.sign(raw - tch.lastRaw); tch.lastRaw = raw; }
   const prevHalf = tch.yHalf;
@@ -814,12 +869,9 @@ window.addEventListener('pointermove', e => {
     tch.slowSince = 0;
   }
 
-  if (tch.speed > TAAN_SPEED) {
-    // Taan: jump almost straight to each exact note, with a tiny articulation between notes.
-    if (changed) { tch.voice.setPitch(offMidi(idx, off), 0.006); tch.voice.articulate(); }
-  } else {
-    tch.voice.setPitch(meendPitch(p, tch), MEEND_SMOOTH);
-  }
+  // A slide is always a meend (taans are tapped): one continuous curve that leans into
+  // each passing note, e.g. P→R in Yaman flows P–M–G–R; the note you land on locks exactly.
+  tch.voice.setPitch(meendPitch(p, tch), MEEND_SMOOTH);
   tch.idx = idx; tch.off = off;
   showHeld(tch, elFor(idx, off));
   // fallback: if events stop entirely, also lock on
@@ -847,6 +899,8 @@ function endTouch(e) {
   if (!tch) return;
   touches.delete(e.pointerId);
   clearTimeout(tch.settle);
+  if (tch.puller) { endPull(tch); return; }
+  if (tch.pulls) { clearTimeout(tch.returnTimer); for (const p of tch.pulls) { p.host = null; showHeld(p, null); } tch.pulls = []; }
   const age = performance.now() - tch.t0;
   if (tch.voice && age < MIN_NOTE_MS) {
     // short tap: keep it sounding (and lit) a little longer
@@ -1107,6 +1161,7 @@ document.querySelectorAll('[data-cents]').forEach(b => {
   b.onclick = () => { S.cents = clamp(S.cents + Number(b.dataset.cents), -50, 50); changedTuning(); };
 });
 document.querySelectorAll('[data-slide]').forEach(b => { b.onclick = () => { S.slide = b.dataset.slide; save(); renderSettings(); }; });
+document.querySelectorAll('[data-second]').forEach(b => { b.onclick = () => { S.second = b.dataset.second; save(); renderSettings(); }; });
 // Tanpura string chips: the raga's usual choice is marked with a dot.
 function renderStringChips() {
   const def = ragaTanpura(currentRaga());
@@ -1136,6 +1191,7 @@ function renderSettings() {
   $('saHz').textContent = mtof(saMidi()).toFixed(1) + ' Hz';
   $('centsVal').textContent = (S.cents > 0 ? '+' : '') + S.cents;
   document.querySelectorAll('[data-slide]').forEach(b => b.classList.toggle('sel', b.dataset.slide === S.slide));
+  document.querySelectorAll('[data-second]').forEach(b => b.classList.toggle('sel', b.dataset.second === S.second));
   renderStringChips();
   $('bpmVal').textContent = S.bpm;
   $('balance').value = S.balance;
