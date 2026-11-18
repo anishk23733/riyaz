@@ -18,27 +18,30 @@
  },
  {
   "file": "m_tin1.wav",
-  "cls": "tin",
+  "cls": "tas",
   "drum": "d",
   "dur": 1.112,
   "src": "CC0 \u2014 mmiron, Freesound pack 8162",
-  "hz": 280.0
+  "hz": 280.0,
+  "note": "labelled \"tas\" in the source (likely a sustained Ta); kept but not used for Tin"
  },
  {
   "file": "m_tin2.wav",
-  "cls": "tin",
+  "cls": "tas",
   "drum": "d",
   "dur": 1.4,
   "src": "CC0 \u2014 mmiron, Freesound pack 8162",
-  "hz": 280.0
+  "hz": 280.0,
+  "note": "labelled \"tas\" in the source (likely a sustained Ta); kept but not used for Tin"
  },
  {
   "file": "m_tin3.wav",
-  "cls": "tin",
+  "cls": "tas",
   "drum": "d",
   "dur": 1.236,
   "src": "CC0 \u2014 mmiron, Freesound pack 8162",
-  "hz": 280.0
+  "hz": 280.0,
+  "note": "labelled \"tas\" in the source (likely a sustained Ta); kept but not used for Tin"
  },
  {
   "file": "m_tun1.wav",
