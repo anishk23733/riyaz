@@ -504,46 +504,78 @@ function synthVoice(midi, quick, at) {
 }
 
 // =====================================================================
-// Tanpura: real recorded plucks, pitch-shifted to each string. Until they're loaded
-// (or if they fail) a synthesised tanpura is used (additive strings with a moving
-// "jawari" formant).
+// Tanpura: plucks of a modelled tanpura string with a real jawari (a stiff string buzzing
+// against a curved bridge and thread), rendered every two semitones so each string is
+// shifted by at most a semitone. Until they're loaded (or if they fail) a lighter
+// synthesised tanpura is used (additive strings with a moving "jawari" formant).
 // =====================================================================
 
-// ---------- Recorded tanpura ----------
-// Samples: single string plucks by luckylittleraven on Freesound (CC0), pack 23512.
-// Each file's true pitch was measured from its harmonics ('hz' in the manifest).
-const Tamb = { list: [], raw: new Map(), ready: false, pending: null, gen: 0 };
+// ---------- Rendered tanpura ----------
+// Made by tools/tanpura (a finite-difference string model); two plucks per pitch, 9.5 s
+// each so every string rings on until it's plucked again. Each file's true pitch was
+// measured from its harmonics ('hz' in the manifest).
+// Only the plucks the current strings need are fetched and decoded (decoded audio is large:
+// all of them would take ~90 MB); the service worker keeps every file for offline use.
+const Tamb = { list: [], raw: new Map(), loading: new Map(), pending: null, gen: 0, want: [] };
 function loadTanpura() {
   Tamb.pending = (async () => {
     try {
-      const list = await (await fetch('tanpura/samples.json')).json();
-      await Promise.all(list.map(async s => Tamb.raw.set(s.file, await (await fetch('tanpura/' + s.file)).arrayBuffer())));
-      Tamb.list = list;
-      await decodeTanpura();
+      Tamb.list = await (await fetch('tanpura/samples.json')).json();
+      if (Tamb.want.length) await tanpuraNeed(Tamb.want);
     } catch (e) { console.warn('Tanpura samples unavailable, using generated sound', e); }
   })();
   return Tamb.pending;
 }
-function decodeTanpura() {
-  if (!Tamb.list.length) return Promise.resolve();
-  Tamb.ready = false;
-  const c = audio(), gen = ++Tamb.gen; // a newer decode (audio engine rebuilt) supersedes this one
-  Tamb.pending = Promise.all(Tamb.list.map(s => new Promise((ok, fail) =>
-    c.decodeAudioData(Tamb.raw.get(s.file).slice(0), b => { if (gen === Tamb.gen) s.buf = b; ok(); }, fail))))
-    .then(() => { if (gen === Tamb.gen) Tamb.ready = Tamb.list.every(s => s.buf); })
-    .catch(e => console.warn('Tanpura samples failed to decode', e));
-  return Tamb.pending;
-}
-const TANPURA_SAMPLE_LEVEL = 1.6; // recordings are quieter (RMS) than the generated strings
-const TANPURA_PREROLL = 0.012;    // silence kept before each pluck's attack in the files
-
-// The recording(s) to use for a string at f Hz: the nearest-pitched pluck, or — so repeated
-// plucks aren't identical — any pluck within half a semitone of being as close.
-function tanpuraSampleFor(f) {
+// The plucks to choose from for a string at f Hz: the nearest-pitched pair of takes, or —
+// so repeated plucks aren't identical — any within half a semitone of being as close.
+function tanpuraNear(f) {
+  if (!Tamb.list.length) return [];
   const dist = s => Math.abs(Math.log2(f / s.hz)) * 12;
   const best = Math.min(...Tamb.list.map(dist));
-  const near = Tamb.list.filter(s => dist(s) <= best + 0.5);
-  return near[Math.floor(Math.random() * near.length)];
+  return Tamb.list.filter(s => dist(s) <= best + 0.5);
+}
+// Make sure the plucks for these string frequencies are decoded; free the others.
+function tanpuraNeed(freqs) {
+  Tamb.want = freqs;
+  if (!Tamb.list.length) return Tamb.pending || Promise.resolve();
+  const need = new Set(freqs.flatMap(tanpuraNear));
+  for (const s of Tamb.list) if (!need.has(s)) s.buf = null;
+  const c = audio(), gen = Tamb.gen;
+  return Promise.all([...need].filter(s => !s.buf).map(async s => {
+    try {
+      if (!Tamb.raw.has(s.file)) {
+        if (!Tamb.loading.has(s.file)) Tamb.loading.set(s.file, fetch('tanpura/' + s.file).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }));
+        Tamb.raw.set(s.file, await Tamb.loading.get(s.file));
+      }
+      const b = await new Promise((ok, fail) => c.decodeAudioData(Tamb.raw.get(s.file).slice(0), ok, fail));
+      // a newer audio engine (rebuilt after an iOS interruption) supersedes this decode
+      if (gen === Tamb.gen && Tamb.want === freqs) { s.buf = b; s.onset = pluckOnset(b); }
+    } catch (e) { Tamb.loading.delete(s.file); console.warn('Tanpura pluck unavailable', s.file, e); }
+  }));
+}
+// After the audio engine is rebuilt every decoded pluck belongs to the old one.
+function decodeTanpura() {
+  Tamb.gen++;
+  for (const s of Tamb.list) s.buf = null;
+  return Tamb.want.length ? tanpuraNeed(Tamb.want) : Promise.resolve();
+}
+const TANPURA_SAMPLE_LEVEL = 1.5; // rendered plucks are quieter (RMS) than the generated strings
+const TANPURA_PREROLL = 0.012;    // how much of the silence before an attack may be played
+
+// Where the pluck starts in a decoded file. Compressed audio carries some decoder padding
+// that differs between browsers, so it's found rather than assumed.
+function pluckOnset(b) {
+  const d = b.getChannelData(0), n = Math.min(d.length, Math.floor(b.sampleRate * 0.3));
+  let peak = 0;
+  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(d[i]));
+  for (let i = 0; i < n; i++) if (Math.abs(d[i]) > peak * 0.05) return Math.max(0, i / b.sampleRate - TANPURA_PREROLL);
+  return 0;
+}
+
+// A decoded pluck for a string at f Hz, if one is ready.
+function tanpuraSampleFor(f) {
+  const ready = tanpuraNear(f).filter(s => s.buf);
+  return ready.length ? ready[Math.floor(Math.random() * ready.length)] : null;
 }
 
 function synthString(sr, f, dur) {
@@ -594,10 +626,12 @@ function ragaTanpura(r) {
 const STRING_ORDER = ['P', 'm', 'M', 'd', 'D', 'N', 'G'];
 const STRING_SEMI = { P: -5, m: -7, M: -6, N: -1, d: -4, D: -3, G: -8 }; // relative to madhya Sa, in mandra
 
-// The tanpura plucks on the shared beat: once per beat at slow/medium tempo, every 2nd or
-// 3rd beat when fast, so it never sounds frantic (plucks stay at least ~0.55 s apart).
+// The tanpura plucks on the shared beat: once per beat at medium tempo, every 2nd or 3rd
+// beat when fast, so it never sounds frantic (plucks stay at least ~0.55 s apart), and on
+// halves or thirds of a slow (vilambit) beat so the drone never thins out (at most ~1.4 s).
 function pluckSpacing() {
   const beat = 60 / S.bpm;
+  if (beat > 1.4) return beat / Math.ceil(beat / 1.4 - 1e-9);
   return beat * Math.max(1, Math.ceil(0.55 / beat - 1e-9));
 }
 
@@ -618,10 +652,12 @@ const Tanpura = {
   freqOf(semi) { return mtof(saMidi() + semi); },
   async prepare() {
     const c = audio(), gen = ++this.gen;
-    // Recorded plucks need no preparation; give them a moment to finish loading before
-    // falling back to generating strings.
-    if (!Tamb.ready && Tamb.pending) await Promise.race([Tamb.pending, new Promise(r => setTimeout(r, 1500))]);
-    if (Tamb.ready || gen !== this.gen) return;
+    // Fetch and decode the rendered plucks these strings need; give them a moment before
+    // falling back to generating strings (they take over as soon as they're ready).
+    const freqs = this.strings().map(st => this.freqOf(st.semi) * (st.rate || 1));
+    const loaded = (Tamb.pending || Promise.resolve()).then(() => tanpuraNeed(freqs));
+    await Promise.race([loaded, new Promise(r => setTimeout(r, 1500))]);
+    if (gen !== this.gen || freqs.every(f => tanpuraSampleFor(f))) return;
     for (const st of this.strings()) {
       const f = this.freqOf(st.semi), key = f.toFixed(2);
       if (this.cache.has(key)) continue;
@@ -674,9 +710,9 @@ const Tanpura = {
     }
   },
   pluck(st, i, t) {
-    // Recorded pluck when available (pitch-shifted to the string), else the generated string.
+    // Rendered pluck when available (nearest pitch, shifted to the string), else the generated string.
     const f = this.freqOf(st.semi) * (st.rate || 1);
-    const s = Tamb.ready ? tanpuraSampleFor(f) : null;
+    const s = tanpuraSampleFor(f);
     const buf = s ? s.buf : this.cache.get(this.freqOf(st.semi).toFixed(2));
     if (!buf) return;
     const jitter = (Math.random() - 0.5) * 0.02;
@@ -697,8 +733,8 @@ const Tanpura = {
     else out.connect(g).connect(tanpuraBus);
     const prev = this.last.get(i);
     if (prev) { prev.g.gain.setTargetAtTime(0, t, 0.06); prev.src.stop(t + 0.5); }
-    // recorded plucks start a random few ms into their pre-roll, so attacks don't line up mechanically
-    src.start(t + jitter, s ? Math.random() * TANPURA_PREROLL * 0.8 : 0);
+    // rendered plucks start a random few ms into their pre-roll, so attacks don't line up mechanically
+    src.start(t + jitter, s ? (s.onset || 0) + Math.random() * TANPURA_PREROLL * 0.8 : 0);
     this.last.set(i, { src, g });
     const delay = Math.max(0, (t - ctx.currentTime) * 1000);
     setTimeout(() => flashPluck(i), delay);

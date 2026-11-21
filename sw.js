@@ -1,5 +1,5 @@
 // Bump this when you change files so phones pick up the new version.
-const CACHE = 'riyaz-v36';
+const CACHE = 'riyaz-v37';
 
 const ASSETS = [
   './',
@@ -28,7 +28,8 @@ const ASSETS = [
       'm_ge1','m_ge2','m_ge3','m_ge4','m_ge5','m_ge6','m_ge7','m_ge8','m_ke1','m_ke2','m_ke3',
       's_dha1','s_dhin1','s_ge1','s_ke1','s_na1','s_na2','s_re1','s_te1','s_tin1','s_tun1'].map(n => `tabla/${n}.wav`),
   'tanpura/samples.json',
-  ...['Cs2', 'Gs2', 'As2', 'Cs3'].map(n => `tanpura/${n}.wav`),
+  // modelled tanpura plucks: every odd MIDI note 25–71 (C♯1–B4), two takes each
+  ...Array.from({ length: 24 }, (_, i) => 25 + 2 * i).flatMap(m => [`tanpura/p${m}_0.mp3`, `tanpura/p${m}_1.mp3`]),
 ];
 
 self.addEventListener('install', e => {
