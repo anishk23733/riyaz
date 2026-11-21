@@ -45,6 +45,10 @@ const FREE_PLAY = {
 };
 ALL_RAGAS.set(FREE_PLAY.name, FREE_PLAY);
 
+// Ragas whose swaras fit none of the 10 thaats use thaat: 'Other' (shown in their own group).
+const OTHER = 'Other';
+const thaatLabel = r => r.thaat === OTHER ? 'no thaat' : r.thaat + ' thaat';
+
 const JATI = { 5: 'Audav', 6: 'Shadav', 7: 'Sampurna' };
 function ragaInfo(r) {
   const up = tokens(r.aaroh), dn = tokens(r.avaroh);
@@ -1215,7 +1219,7 @@ window.addEventListener('resize', updateNotchSide);
 function updateHeader() {
   const r = currentRaga();
   $('ragaName').textContent = r.isThaat ? r.thaat : r.name;
-  $('ragaThaat').textContent = r.isFree ? 'all 12 swaras' : r.isThaat ? 'thaat scale' : r.thaat + ' thaat';
+  $('ragaThaat').textContent = r.isFree ? 'all 12 swaras' : r.isThaat ? 'thaat scale' : thaatLabel(r);
 }
 // =====================================================================
 // Tabla: plays the theka of the chosen taal (taals.js) from recorded strokes.
@@ -1496,7 +1500,8 @@ function renderTree() {
     b.onclick = () => { browserSel = FREE_PLAY.name; renderTree(); renderDetail(); };
     tree.appendChild(b);
   }
-  for (const t of THAATS) {
+  // The 10 thaats, then 'Other' for ragas that fit none of them (Charukeshi, Kirwani…)
+  for (const t of [...THAATS, { name: OTHER, label: 'Other (no thaat)' }]) {
     const items = [...ALL_RAGAS.values()].filter(r => r.thaat === t.name && matches(r, q));
     const ragas = items.filter(r => !r.isThaat);
     if (q && !items.length) continue;
@@ -1504,7 +1509,7 @@ function renderTree() {
     const open = q ? true : openThaats.has(t.name);
     const head = document.createElement('button');
     head.className = 'tree-thaat' + (open ? ' open' : '');
-    head.innerHTML = `<span class="caret">${open ? '▾' : '▸'}</span><span>${esc(t.name)}</span><span class="right">${ragas.length} raga${ragas.length === 1 ? '' : 's'}</span>`;
+    head.innerHTML = `<span class="caret">${open ? '▾' : '▸'}</span><span>${esc(t.label || t.name)}</span><span class="right">${ragas.length} raga${ragas.length === 1 ? '' : 's'}</span>`;
     head.onclick = () => { open ? openThaats.delete(t.name) : openThaats.add(t.name); renderTree(); };
     tree.appendChild(head);
     if (!open) continue;
@@ -1528,7 +1533,7 @@ function renderDetail() {
   const kinds = inf.all.filter(o => o !== 0 && o !== 7).map(o =>
     `<span class="${KIND[o] === 'shuddha' ? '' : 'alt'}"><b>${SWARA_NAME[o]}</b> ${KIND[o]}</span>`).join('');
   const meta = r.isFree ? 'Every swara, every form — experiment freely'
-    : [r.isThaat ? 'Thaat (parent scale)' : r.thaat + ' thaat', inf.jati, r.time].filter(Boolean).join(' · ');
+    : [r.isThaat ? 'Thaat (parent scale)' : thaatLabel(r), inf.jati, r.time].filter(Boolean).join(' · ');
   // aaroh / avaroh / pakad / key phrases: each line has its own ▶ and lights up as it plays
   const plays = ragaPhrases(r);
   const row = (i) => `<button class="phrase-line" data-pl="${i}"><span class="play">▶</span><span class="v">${phraseHTML(plays[i][1])}</span></button>`;

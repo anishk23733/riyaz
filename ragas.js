@@ -9,6 +9,7 @@
 // Fields: name, thaat, aaroh, avaroh, pakad (the main one), phrases[] (other characteristic phrases), rules[], vadi, samvadi, time,
 //         tanpura (first string: P, m, M, N, d, D — default P), check (true = written from
 //         memory and worth verifying with a teacher/book).
+//         thaat: 'Other' = fits none of the 10 thaats (Charukeshi, Kirwani…); listed in its own group.
 
 const THAATS = [
   { name: 'Bilawal', scale: 'S R G m P D N' },
@@ -98,6 +99,18 @@ const RAGAS = [
     rules: ["Tivra M is prominent (more than in Bihag)", "R and D are skipped going up"],
     vadi: 'G', samvadi: 'N', check: true },
 
+  { name: 'Shyam Kalyan', thaat: 'Kalyan', time: 'Evening',
+    aaroh: "N. S R M P N S'", avaroh: "S' N D P M P D P G m P G m R S N. S",
+    pakad: "N. S R, R M P, G m P, G m R S",
+    phrases: ["R M P N S'", "S' N D P", "M P D P", "G m P G m R S"],
+    rules: ["Goes up R M P N S' (not G M P N S'); D is skipped going up", "Tivra M going up, shuddh m in G m P G m R", "Close to Shuddh Sarang — G is what sets it apart", "D can be held long coming down"],
+    vadi: 'P', samvadi: 'S', check: true },
+  { name: 'Nand', thaat: 'Kalyan', time: 'Night',
+    aaroh: "S G m D P, G m P N S'", avaroh: "S' D N P, D M P G, m D P R S",
+    pakad: "S G m D P R S, G m P D N, P D P m P, G m D P R S",
+    phrases: ["S G m D P R S", "G m P N S'", "D M P G", "G m D P R S"],
+    rules: ["R is skipped going up; S G m D P R S is the signature phrase", "Tivra M only in passing (D M P G); shuddh m is main", "Zig-zag movement, mostly in the middle and upper octaves"],
+    vadi: 'S', samvadi: 'P', check: true },
   // ---------------- Bilawal ----------------
   { name: 'Bilawal', thaat: 'Bilawal', time: 'Morning',
     aaroh: "S R G m P D N S'", avaroh: "S' N D P m G R S",
@@ -195,6 +208,18 @@ const RAGAS = [
     rules: ["Both G/g and N/n", "Komal g only in R g R S"],
     vadi: 'R', samvadi: 'P', check: true },
 
+  { name: 'Gorakh Kalyan', thaat: 'Khamaj', time: 'Night', tanpura: 'm',
+    aaroh: "S R m D n D S'", avaroh: "S' n D P m R S n. D. S",
+    pakad: "D. n. S R m, m D n D m, R S",
+    phrases: ["S R m D", "m D n D S'", "S' n D m", "R S n. D. S"],
+    rules: ["No G", "P is weak — only in passing coming down, or left out", "m is central; feels like Durga and Bageshree"],
+    vadi: 'm', samvadi: 'S', check: true },
+  { name: 'Gaud Malhar', thaat: 'Khamaj', time: 'Monsoon / night',
+    aaroh: "S R G m, R P, m P D N S'", avaroh: "S' n D n P m, G R G R S",
+    pakad: "S R G m, R G m G m, G R G R S, m P D n P",
+    phrases: ["S R G m", "m R P", "m P D n P", "m P D N S'", "G R G R S"],
+    rules: ["Gaud phrases (S R G m, G R G S) with Malhar's m R P", "Shuddh N going up, komal n coming down (D n P)", "Shuddh G, unlike Miyan ki Malhar", "Books differ on its thaat (Khamaj, Bilawal or Kafi)"],
+    vadi: 'm', samvadi: 'S', check: true },
   // ---------------- Kafi ----------------
   { name: 'Kafi', thaat: 'Kafi', time: 'Night',
     aaroh: "S R g m P D n S'", avaroh: "S' n D P m g R S",
@@ -255,6 +280,12 @@ const RAGAS = [
     aaroh: "n. S g m P n S'", avaroh: "S' n P m g S",
     rules: ["Five notes: no R, no D"], check: true },
 
+  { name: 'Madhmad Sarang', thaat: 'Kafi', time: 'Afternoon',
+    aaroh: "n. S R m P n S'", avaroh: "S' n P m R S",
+    pakad: "n. S R, m R, P m R, n P m R S",
+    phrases: ["n. S R", "P m R", "n P m R S", "m P n S'"],
+    rules: ["Five notes: no G, no D", "Like Brindavani Sarang but only komal n", "Same notes as Megh — keep the plain Sarang movement (P m R, n P), not Megh's heavy meend on R"],
+    vadi: 'R', samvadi: 'P' },
   // ---------------- Asavari ----------------
   { name: 'Asavari', thaat: 'Asavari', time: 'Late morning',
     aaroh: "S R m P d S'", avaroh: "S' n d P m g R S",
@@ -275,6 +306,12 @@ const RAGAS = [
     rules: ["Slow oscillation (andolan) on g and d", "Lives mostly in the lower and middle octaves", "g m R S is characteristic"],
     vadi: 'R', samvadi: 'P', check: true },
 
+  { name: 'Adana', thaat: 'Asavari', time: 'Night',
+    aaroh: "S R m P d n S'", avaroh: "S' d n P, m P g m R S",
+    pakad: "m P d n S', S' d n P, m P g m R S",
+    phrases: ["m P d n S'", "S' d n S'", "S' d n P", "g m R S"],
+    rules: ["Upper-octave heavy: lives in the middle and upper octaves", "No g going up; g only in g m R S", "No andolan on g or d — that would make it Darbari"],
+    vadi: "S'", samvadi: 'P', check: true },
   // ---------------- Bhairavi ----------------
   { name: 'Bhairavi', thaat: 'Bhairavi', time: 'Morning',
     aaroh: "S r g m P d n S'", avaroh: "S' n d P m g r S",
@@ -293,6 +330,12 @@ const RAGAS = [
     rules: ["No m and n going up", "Very zig-zag coming down"],
     vadi: 'd', samvadi: 'g', check: true },
 
+  { name: 'Komal Rishabh Asavari', thaat: 'Bhairavi', time: 'Late morning',
+    aaroh: "S r m P d S'", avaroh: "S' r' n d P, d m P, m g r S",
+    pakad: "m P d S', r' n d P, g r S",
+    phrases: ["r m P d S'", "S' r' n d P", "d m P", "g r S"],
+    rules: ["Asavari with komal r", "No g and n going up", "d is the main note; meend-heavy"],
+    vadi: 'd', samvadi: 'r', check: true },
   // ---------------- Bhairav ----------------
   { name: 'Bhairav', thaat: 'Bhairav', time: 'Dawn',
     aaroh: "S r G m P d N S'", avaroh: "S' N d P m G r S",
@@ -326,6 +369,12 @@ const RAGAS = [
     aaroh: "S r m P n S'", avaroh: "S' n P m r S",
     rules: ["Five notes: no G, no D"], check: true },
 
+  { name: 'Vibhas', thaat: 'Bhairav', time: 'Dawn',
+    aaroh: "S r G P d S'", avaroh: "S' d P G r S",
+    pakad: "r G r G, P d S', d P G r S",
+    phrases: ["P d d P", "G P d P", "G P G r S"],
+    rules: ["Five notes: no m, no N", "P is a resting note, but phrases don't end on P", "Other versions exist with shuddh D (Marwa) or under Poorvi"],
+    vadi: 'd', samvadi: 'r', check: true },
   // ---------------- Poorvi ----------------
   { name: 'Poorvi', thaat: 'Poorvi', time: 'Sunset',
     aaroh: "N. r G M P d N S'", avaroh: "S' N d P M G m G r S",
@@ -375,6 +424,12 @@ const RAGAS = [
     rules: ["No P", "Both madhyams side by side: m M m G"],
     vadi: 'm', samvadi: 'S', check: true },
 
+  { name: 'Puriya Kalyan', thaat: 'Marwa', time: 'Sunset',
+    aaroh: "N. r G M P D N S'", avaroh: "S' N D P M G r S",
+    pakad: "N. r G, M P, M D N D P, M G r S",
+    phrases: ["N. r G M P", "M D N S'", "r N D P", "M G r S"],
+    rules: ["Puriya's lower half (N. r G) with Kalyan's P in the upper half", "P is strong coming down; can be skipped going up (M D N S')", "G and N are strong"],
+    vadi: 'G', samvadi: 'N', check: true },
   // ---------------- Todi ----------------
   { name: 'Todi (Miyan ki)', thaat: 'Todi', time: 'Morning',
     aaroh: "S r g M P d N S'", avaroh: "S' N d P M g r S",
@@ -398,4 +453,30 @@ const RAGAS = [
     phrases: ["N. S g M P", "P N S'", "M g R S"],
     rules: ["Often grouped with Todi, but uses shuddh R and D"],
     vadi: 'P', samvadi: 'S', check: true },
+
+  // ---------------- Other (fits none of the 10 thaats) ----------------
+  { name: 'Charukeshi', thaat: 'Other', time: 'Late morning',
+    aaroh: "S R G m P d n S'", avaroh: "S' n d P m G R S",
+    pakad: "d. n. S R G m G R, R G m d P, R G m R S",
+    phrases: ["S R G m", "G m d P", "P d n d m G R", "R G m R S", "d n S' R' S'"],
+    rules: ["Lower half all shuddha (S R G m), upper half komal (P d n)", "From Carnatic Charukesi; closest thaat is Khamaj, but with komal d", "P is sometimes skipped: G m d P"],
+    vadi: 'm', samvadi: 'S', check: true },
+  { name: 'Chandrakauns', thaat: 'Other', time: 'Late night', tanpura: 'm',
+    aaroh: "S g m d N S'", avaroh: "S' N d m g m g S N. S",
+    pakad: "m d N d, m g m g S",
+    phrases: ["g m d N S'", "N d S'", "S' N d m", "g m g S N. S"],
+    rules: ["Malkauns with shuddh N instead of komal n", "Five notes: no R, no P", "Shuddh N is the striking note; m is the anchor"],
+    vadi: 'm', samvadi: 'S' },
+  { name: 'Madhukauns', thaat: 'Other', time: 'Night',
+    aaroh: "S g M P n S'", avaroh: "S' n P M g S",
+    pakad: "S g M P, M g M P, M P n S', g M g S",
+    phrases: ["S g M P", "P M g M P", "S' n P M", "g M g S"],
+    rules: ["Five notes: no R, no D", "Opens like Madhuvanti (S g M P); meend from g down to S gives the Kauns feel", "Some books put it under Kafi or Todi, but komal g with tivra M and komal n fits no thaat"],
+    vadi: 'P', samvadi: 'S' },
+  { name: 'Kirwani', thaat: 'Other', time: 'Night',
+    aaroh: "S R g m P d N S'", avaroh: "S' N d P m g R S",
+    pakad: "P d S', S' N d P, d P m P, P m g R, g R S N. d. N. S",
+    phrases: ["P d S'", "S' N d P", "d P m P", "P m g R", "g R S N. d. N. S"],
+    rules: ["Komal g and d with shuddh N (the harmonic-minor scale)", "From Carnatic Keeravani; light and lyrical, common in instrumental music"],
+    vadi: 'P', samvadi: 'S' },
 ];
