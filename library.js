@@ -221,7 +221,7 @@ function openLibrary() {
 }
 
 function renderLibKinds() {
-  const kinds = [{ id: '', name: 'All' }, ...KINDS];
+  const kinds = [{ id: '', name: 'All' }, { id: 'notation', name: 'From notation' }, ...KINDS];
   $('libKinds').innerHTML = kinds.map(k =>
     `<button data-kind="${k.id}" class="${(S.libKind || '') === k.id ? 'sel' : ''}">${esc(k.name.replace(' taan', ''))}</button>`).join('');
   $('libKinds').querySelectorAll('button').forEach(b => {
@@ -229,11 +229,16 @@ function renderLibKinds() {
   });
 }
 
+// the kind filter; 'From notation' picks phrases taken from a written source
+function libKindMatch(p) {
+  return !S.libKind || (S.libKind === 'notation' ? p.src === 'notation' : p.kind === S.libKind);
+}
+
 function renderLibTree() {
   const tree = $('libTree');
   tree.innerHTML = '';
   for (const name of libRagas()) {
-    const items = PHRASES.filter(p => p.raga === name && (!S.libKind || p.kind === S.libKind));
+    const items = PHRASES.filter(p => p.raga === name && libKindMatch(p));
     if (!items.length) continue;
     const open = libOpen.has(name);
     const head = document.createElement('button');
@@ -245,7 +250,7 @@ function renderLibTree() {
     for (const p of items) {
       const b = document.createElement('button');
       b.className = 'tree-raga lib-item' + (p === libSel ? ' sel' : '') + (p === Lib.entry && Lib.playing ? ' playing' : '');
-      b.innerHTML = `<span class="lv lv${p.level || 1}" aria-label="${esc(LEVEL[p.level || 1])}"></span><span class="nm">${esc(p.name)}</span><span class="right">${esc(KIND_NAME[p.kind] || p.kind)}</span>`;
+      b.innerHTML = `<span class="lv lv${p.level || 1}" aria-label="${esc(LEVEL[p.level || 1])}"></span><span class="nm">${esc(p.name)}</span><span class="right">${esc(KIND_NAME[p.kind] || p.kind)}${p.src === 'notation' ? ' · notated' : ''}</span>`;
       b.onclick = () => selectPhrase(p);
       tree.appendChild(b);
     }
@@ -313,7 +318,15 @@ function renderLibDetail() {
   const meta = [p.raga, KIND_NAME[p.kind] || p.kind, LEVEL[p.level || 1]].join(' · ');
   const perBeat = Math.max(...parsed.beats.map(b => b.slots.length));
   const nps = perBeat * Lib.lay() * S.bpm / 60;
-  const src = p.src && p.src !== 'written' ? `Transcribed from ${esc(p.src)}` : '';
+  const cite = (from, url) => url && /^https:\/\//.test(url)
+    ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(from)}</a>` : esc(from);
+  const src = p.src === 'notation' ? `From notation: ${cite(p.from, p.url)}`
+    : p.src && p.src !== 'written' ? `Transcribed from ${esc(p.src)}` : '';
+  const checkText = p.src === 'written'
+    ? `Composed for this app in the Kirana style${p.ref ? `, after ${esc(p.ref)}` : ''}, not transcribed from a recording.`
+    : p.src === 'notation'
+      ? esc(p.srcNote || 'The notes are as written in the source; the rhythm is set for this app, since the source gives none.')
+      : 'Transcribed by pitch tracking.';
   const playingThis = Lib.playing && Lib.entry === p;
   $('libDetail').innerHTML = `
     <div class="detail-scroll">
@@ -323,7 +336,7 @@ function renderLibDetail() {
       ${p.why ? `<p class="lib-why">${esc(p.why)}</p>` : ''}
       <div class="legend">⌒ meend into the note · small note = kan · – hold · · rest · numbers = matras, X = sam</div>
       ${src ? `<div class="legend">${src}</div>` : ''}
-      ${p.check ? `<div class="check-note">${p.src === 'written' ? 'Composed for this app in the Kirana style, not transcribed from a recording.' : 'Transcribed by pitch tracking.'} Worth checking with your teacher; you can edit phrases.js.</div>` : ''}
+      ${p.check ? `<div class="check-note">${checkText} Worth checking with your teacher; you can edit phrases.js.</div>` : ''}
     </div>
     <div class="detail-actions lib-actions">
       <button class="btn primary" id="libPlay">${playingThis ? '■ Stop' : '▶ Play'}</button>
