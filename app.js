@@ -197,11 +197,13 @@ const VOICE_LEVEL = 0.085;
 
 // Every new note goes through here. Real recorded harmonium once loaded; until then the
 // generated harmonium. In fast playing (taans) notes must speak instantly and in tune.
-function harmoniumVoice(midi) {
+// `at` (optional, audio-clock seconds) starts the note at an exact future time: the phrase
+// library schedules whole taans ahead so they sit in time with the tabla.
+function harmoniumVoice(midi, at) {
   const nowMs = performance.now();
   const quick = nowMs - lastNoteOn < 300 || (typeof touches !== 'undefined' && touches.size > 1);
   lastNoteOn = nowMs;
-  return Harm.ready ? sampledVoice(midi, quick) : synthVoice(midi, quick);
+  return Harm.ready ? sampledVoice(midi, quick, at) : synthVoice(midi, quick, at);
 }
 
 // ---------- Recorded harmonium ----------
@@ -266,8 +268,9 @@ function sampleWeights(m) {
   return Object.keys(g).map(k => [Harm.list[k], g[k]]);
 }
 
-function sampledVoice(midi, quick) {
-  const c = audio(), t = c.currentTime;
+function sampledVoice(midi, quick, at) {
+  const c = audio(), t = Math.max(c.currentTime, at || 0);
+  const when = a => Math.max(c.currentTime, a || 0); // every method takes an optional start time
   const out = c.createGain();
   // Onset: ~6 ms for fast taps (they start in the steady tone, so no thump); 15 ms for a phrase's first note
   out.gain.setValueAtTime(0, t);
@@ -309,8 +312,8 @@ function sampledVoice(midi, quick) {
   // Glide every layer to pitch m (time constant tc) and crossfade the recordings along the way.
   // The blend follows the pitch curve itself (scheduled point by point), moving no faster than
   // XFADE per recording, and power-normalised, so there are no dips, flickers or blips.
-  function goTo(m, tc, first) {
-    const tt = c.currentTime;
+  function goTo(m, tc, first, at) {
+    const tt = first ? t : when(at);
     const mNow = first ? m : pitchAt(tt);
     P = { t: tt, v: mNow, m, tc: Math.max(tc, 1e-4) };
     // current mix (as shares) -> path of mixes toward the target
@@ -377,9 +380,9 @@ function sampledVoice(midi, quick) {
   // A key change, as on a real harmonium: no glide. The sounding recordings keep their pitch and
   // fade out while the new note's own recordings (already in their steady tone) fade in, over
   // STEP_XF with equal power (two reeds briefly sounding together: legato, no gap, no slide).
-  function jumpTo(m) {
-    const tt = c.currentTime, mNow = pitchAt(tt);
-    if (Math.abs(m - mNow) < 0.05) { goTo(m, 0.005, false); return; }
+  function jumpTo(m, at) {
+    const tt = when(at), mNow = pitchAt(tt);
+    if (Math.abs(m - mNow) < 0.05) { goTo(m, 0.005, false, tt); return; }
     const n = Math.max(2, Math.round(STEP_XF / 0.002));
     for (const [i, L] of layers) {
       const g0 = gainAt(L, tt);
@@ -407,22 +410,22 @@ function sampledVoice(midi, quick) {
   }
 
   return {
-    setPitch(m, tc) { if (!stopped) goTo(m, tc, false); },
-    jumpTo(m) { if (!stopped) jumpTo(m); },
-    articulate() {
+    setPitch(m, tc, at) { if (!stopped) goTo(m, tc, false, at); },
+    jumpTo(m, at) { if (!stopped) jumpTo(m, at); },
+    articulate(at) {
       if (stopped) return;
-      const tt = c.currentTime;
+      const tt = when(at);
       out.gain.cancelScheduledValues(tt);
-      out.gain.setValueAtTime(out.gain.value, tt);
+      out.gain.setValueAtTime(at ? SAMPLE_LEVEL : out.gain.value, tt);
       out.gain.setTargetAtTime(SAMPLE_LEVEL * 0.55, tt, 0.003);
       out.gain.setTargetAtTime(SAMPLE_LEVEL, tt + 0.011, 0.006);
     },
-    stop(fast) {
+    stop(fast, at) {
       if (stopped) return;
       stopped = true;
-      const tt = c.currentTime;
+      const tt = when(at);
       out.gain.cancelScheduledValues(tt);
-      out.gain.setValueAtTime(out.gain.value, tt);
+      out.gain.setValueAtTime(at ? SAMPLE_LEVEL : out.gain.value, tt);
       out.gain.setTargetAtTime(0, tt, fast ? 0.01 : 0.03);
       for (const L of layers.values()) { clearTimeout(L.kill); L.src.stop(tt + 0.4); }
     },
@@ -430,8 +433,9 @@ function sampledVoice(midi, quick) {
 }
 
 // ---------- Generated harmonium (fallback while samples load) ----------
-function synthVoice(midi, quick) {
-  const c = audio(), t = c.currentTime, f = mtof(midi);
+function synthVoice(midi, quick, at) {
+  const c = audio(), t = Math.max(c.currentTime, at || 0), f = mtof(midi);
+  const when = a => Math.max(c.currentTime, a || 0);
   const reeds = [
     { ratio: 1, detune: 0, level: 1 },
     { ratio: 1, detune: 4, level: 0.55 },
@@ -468,30 +472,30 @@ function synthVoice(midi, quick) {
   nz.start(t);
   let stopped = false;
   return {
-    setPitch(m, tc) {
+    setPitch(m, tc, at) {
       if (stopped) return;
-      const tt = c.currentTime, ff = mtof(m);
+      const tt = when(at), ff = mtof(m);
       for (const { o, ratio } of oscs) {
         o.frequency.cancelScheduledValues(tt);
         o.frequency.setTargetAtTime(ff * ratio, tt, tc);
       }
     },
-    jumpTo(m) { this.setPitch(m, 0.002); },
+    jumpTo(m, at) { this.setPitch(m, 0.002, at); },
     // A tiny dip in volume, so consecutive notes in a fast run are heard as separate notes.
-    articulate() {
+    articulate(at) {
       if (stopped) return;
-      const tt = c.currentTime;
+      const tt = when(at);
       g.gain.cancelScheduledValues(tt);
-      g.gain.setValueAtTime(g.gain.value, tt);
+      g.gain.setValueAtTime(at ? VOICE_LEVEL : g.gain.value, tt);
       g.gain.setTargetAtTime(VOICE_LEVEL * 0.55, tt, 0.003);
       g.gain.setTargetAtTime(VOICE_LEVEL, tt + 0.011, 0.006);
     },
-    stop(fast) {
+    stop(fast, at) {
       if (stopped) return;
       stopped = true;
-      const tt = c.currentTime;
+      const tt = when(at);
       g.gain.cancelScheduledValues(tt);
-      g.gain.setValueAtTime(g.gain.value, tt);
+      g.gain.setValueAtTime(at ? VOICE_LEVEL : g.gain.value, tt);
       g.gain.setTargetAtTime(0, tt, fast ? 0.01 : 0.028);
       for (const { o } of oscs) o.stop(tt + 0.5);
       nz.stop(tt + 0.5);
@@ -1330,7 +1334,7 @@ const Tabla = {
       const level = first ? 1 : isDhin ? 0.85 : 0.62;
       // bayan lands a hair before/after the dayan, like real hands
       // damp inner-beat Ge — but let it ring on into a rest; ring longer at slow tempo
-      const damp = !first && !ringOn && !isDhin && s.cls === 'ge' ? Math.max(0.3, beat * 0.45) : 0;
+      const damp = !first && !ringOn && !isDhin && s && s.cls === 'ge' ? Math.max(0.3, beat * 0.45) : 0;
       if (s) this.play(s, t + (st.d ? (Math.random() - 0.5) * 0.008 : 0), vel * level * (st.accent ? 1.15 : 1), damp);
     }
   },
@@ -1376,14 +1380,17 @@ const Tabla = {
     }
   },
 
-  start() {
+  // from/at (optional): begin on matra `from` (0 = sam) at audio time `at` — the phrase
+  // library starts the tabla a vibhag before a phrase, so you hear where you are in the taal.
+  start(from = 0, at = 0) {
     unlock();
     this.playing = true;
-    this.matra = 0;
+    this.matra = from;
     this.queue = [];
     this.walk = 0;
     // in step with the tanpura if it's already playing: sam lands on its next pluck
-    this.nextTime = Tanpura.playing && Tanpura.nextTime > ctx.currentTime + 0.02 ? Tanpura.nextTime : ctx.currentTime + 0.12;
+    this.nextTime = at ? Math.max(at, ctx.currentTime + 0.05)
+      : Tanpura.playing && Tanpura.nextTime > ctx.currentTime + 0.02 ? Tanpura.nextTime : ctx.currentTime + 0.12;
     clearInterval(this.timer);
     this.timer = setInterval(() => this.tick(), 25);
     this.tick();
@@ -1627,6 +1634,7 @@ function keepPadVisible(i, anim) {
 
 function playPhrase(str, hooks = {}) {
   stopPhrase();
+  if (typeof Lib !== 'undefined') Lib.stop(); // one thing playing at a time
   unlock();
   const seq = [];
   let ti = 0;

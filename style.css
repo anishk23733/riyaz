@@ -746,3 +746,68 @@ button:focus:not(:focus-visible) { outline: none; }
   #singView { margin-top: 6px; }
   .sr-sw { font-size: 42px; }
 }
+
+/* ---------- library (aalaps & taans) ---------- */
+.lib-pill { height: 36px; padding: 0 12px 0 10px; font-size: 14px; gap: 6px; }
+.lib-pill[aria-pressed="false"] { color: var(--muted); font-weight: 500; }
+#libTabla[aria-pressed="true"] { background: var(--sa-bg); border-color: #6b4f24; color: var(--accent); }
+.lib-tempo { height: 36px; min-width: 150px; }
+.lib-tempo button { min-width: 38px; height: 28px; }
+.lib-side { width: 280px; flex: none; display: flex; flex-direction: column; border-right: 1px solid #26262b; min-height: 0; }
+.lib-kinds { flex: none; display: flex; gap: 6px; overflow-x: auto; padding: 8px 8px 4px; scrollbar-width: none; }
+.lib-kinds::-webkit-scrollbar { display: none; }
+.lib-kinds button {
+  flex: none;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 15px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.lib-kinds button.sel { background: #34343a; border-color: #34343a; color: var(--text); font-weight: 600; }
+#libTree { flex: 1; overflow-y: auto; padding: 4px 8px 8px; -webkit-overflow-scrolling: touch; }
+.lib-item { padding-left: 14px; gap: 10px; }
+.lib-item .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-item .lv { flex: none; width: 14px; height: 8px; display: inline-flex; gap: 2px; }
+.lib-item .lv::before { content: ''; width: 4px; height: 8px; border-radius: 1px; background: currentColor; opacity: .55;
+  box-shadow: 5px 0 0 0 rgba(236, 234, 228, .14), 10px 0 0 0 rgba(236, 234, 228, .14); }
+.lib-item .lv2::before { box-shadow: 5px 0 0 0 currentColor, 10px 0 0 0 rgba(236, 234, 228, .14); }
+.lib-item .lv3::before { box-shadow: 5px 0 0 0 currentColor, 10px 0 0 0 currentColor; }
+.lib-item.playing .nm::after { content: ' ♪'; color: var(--accent); }
+#libDetail { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+.lib-notation { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 4px; padding: 4px 0; }
+.lib-notation .bt { display: inline-flex; flex-direction: column; align-items: flex-start; min-width: 30px; }
+.lib-notation .bt.many { padding: 0 4px; border-bottom: 1.5px solid var(--line-2); border-radius: 0 0 4px 4px; }
+.lib-notation .mt { height: 14px; font-size: 10px; color: #6e6c66; font-variant-numeric: tabular-nums; padding-left: 1px; }
+.lib-notation .mt.first { color: var(--muted); }
+.lib-notation .mt.sam { color: var(--accent); font-weight: 700; }
+.lib-notation .mt.khali { color: var(--muted); font-weight: 700; }
+.lib-notation .sl { font-size: 21px; letter-spacing: .04em; white-space: nowrap; line-height: 1.5; }
+.lib-notation .hd { color: #6e6c66; padding: 0 2px; }
+.lib-notation .rs { color: #55534e; padding: 0 3px; }
+.lib-notation .kan { font-size: 12px; color: var(--muted); vertical-align: 9px; margin-right: 1px; }
+.lib-notation .gl { font-size: 12px; color: var(--accent); vertical-align: 12px; margin-right: -1px; opacity: .8; }
+.lib-notation .vb { align-self: stretch; width: 1px; margin: 4px 6px 2px; background: var(--line-2); }
+.lib-facts { margin-top: -4px; }
+.lib-why { margin: 0; font-size: 15px; line-height: 1.4; color: #d6d3cb; max-width: 60ch; }
+.lib-actions { align-items: center; }
+.lib-actions .btn.primary { min-width: 108px; }
+.btn.toggle.on { background: var(--sa-bg); border-color: #6b4f24; color: var(--accent); font-weight: 600; }
+.lib-lay { height: 44px; border-radius: 22px; }
+.lib-lay button { padding: 0 14px; min-width: 46px; }
+
+@media (orientation: landscape) and (max-width: 700px) {
+  .lib-side { width: auto; max-height: 45%; border-right: none; border-bottom: 1px solid #26262b; }
+  .lib-pill span { display: none; }
+}
+@media (orientation: landscape) and (max-height: 420px) {
+  .lib-notation .sl { font-size: 19px; }
+  .lib-why { font-size: 14px; }
+  .lib-actions { padding-top: 8px; padding-bottom: 8px; }
+  .lib-actions .btn, .lib-lay { height: 40px; }
+}
+.link-btn { border: none; background: none; padding: 0; color: var(--accent); font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
