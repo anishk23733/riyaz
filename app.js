@@ -812,19 +812,34 @@ function buildPads() {
   updateHeader();
 }
 
+// Every pad is the same width whatever the raga: about a fingertip and a half (72–96px,
+// set by the screen, not by how many swaras the raga has). A raga with fewer swaras
+// shows more pads on screen instead of wider ones.
+const PAD_MIN = 72, PAD_MAX = 96;
 function layout() {
   const W = stage.clientWidth;
-  step = Math.max(58, W / (info.colsPerOctave + 2));
+  step = clamp(W / 9, PAD_MIN, PAD_MAX);
   pads.forEach((p, i) => { p.el.style.left = (i * step + 3) + 'px'; p.el.style.width = (step - 6) + 'px'; });
   track.style.width = pads.length * step + 'px';
   clampScroll();
   applyScroll(false);
 }
-const maxScroll = () => Math.max(0, pads.length * step - stage.clientWidth);
-const clampScroll = () => { scrollX = clamp(scrollX, 0, maxScroll()); };
+// If every pad fits on screen, the strip sits in the middle and doesn't scroll.
+const fitsAll = () => pads.length * step <= stage.clientWidth;
+const minScroll = () => fitsAll() ? (pads.length * step - stage.clientWidth) / 2 : 0;
+const maxScroll = () => fitsAll() ? minScroll() : pads.length * step - stage.clientWidth;
+const clampScroll = () => { scrollX = clamp(scrollX, minScroll(), maxScroll()); };
+// Scroll positions snap so the screen's two edges cut the outermost pads equally.
+function snapPhase() {
+  const W = stage.clientWidth, n = Math.floor(W / step), m = W - n * step;
+  return ((n % 2 ? step : 0) + m) / 2;
+}
 function resetScroll() {
+  // Start with the madhya octave (Sa to taar Sa) in the middle of the screen; if it's
+  // wider than the screen, start at madhya Sa with half of mandra Ni showing.
   const i = pads.findIndex(p => p.oct === 0 && p.lo === 0);
-  scrollX = i * step - 0.5 * step;
+  const span = (info.colsPerOctave + 1) * step, W = stage.clientWidth;
+  scrollX = span <= W ? i * step - (W - span) / 2 : i * step - 0.5 * step;
   clampScroll();
   applyScroll(false);
 }
@@ -832,16 +847,16 @@ function applyScroll(anim) {
   track.classList.toggle('anim', anim);
   mmWindow.classList.toggle('instant', !anim);
   track.style.transform = `translate3d(${-scrollX}px,0,0)`;
-  const first = scrollX / step, count = stage.clientWidth / step;
+  const first = Math.max(0, scrollX / step), count = Math.min(pads.length, stage.clientWidth / step);
   mmWindow.style.left = (first * 12 + 1) + 'px';
   mmWindow.style.width = (count * 12 + 2) + 'px';
   pads.forEach((p, i) => p.tick.classList.toggle('in', i + 1 > first && i < first + count));
-  $('navLeft').disabled = scrollX <= 1;
+  $('navLeft').disabled = scrollX <= minScroll() + 1;
   $('navRight').disabled = scrollX >= maxScroll() - 1;
 }
 function slideBy(nPads) {
-  // snap so a pad edge sits at the half-pad position
-  scrollX = Math.round((scrollX + 0.5 * step) / step + nPads) * step - 0.5 * step;
+  const r = snapPhase();
+  scrollX = Math.round((scrollX + r) / step + nPads) * step - r;
   clampScroll();
   applyScroll(true);
 }
@@ -943,10 +958,11 @@ let scrolling = null, stageLeft = 0;
 
 stage.addEventListener('pointerdown', e => {
   e.preventDefault();
-  unlock();
-  if (phrasePlayer) stopPhrase(); // playing yourself takes over from a phrase
   stageLeft = startOf(stage);
   const p = (ax(e) - stageLeft + scrollX) / step;
+  if (p < 0 || p >= pads.length) return; // the empty space beside a strip that fits on screen
+  unlock();
+  if (phrasePlayer) stopPhrase(); // playing yourself takes over from a phrase
   const tch = {
     id: e.pointerId, x0: ax(e), y0: ay(e), x: ax(e), y: ay(e), t0: performance.now(),
     voice: null, idx: -1, rect: stage.getBoundingClientRect(), yHalf: 'hi', dir: 0, lastRaw: p,
@@ -1210,6 +1226,19 @@ function releaseAll() {
   heldCount.clear();
   track.querySelectorAll('.on').forEach(el => el.classList.remove('on'));
 }
+
+// Mouse wheel or a trackpad's two-finger swipe scrolls the strip too (desktop).
+let wheelSnap = 0;
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (fitsAll()) return;
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  scrollX += d * (e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? stage.clientWidth : 1);
+  clampScroll();
+  applyScroll(false);
+  clearTimeout(wheelSnap);
+  wheelSnap = setTimeout(() => slideBy(0), 160);
+}, { passive: false });
 
 $('navLeft').onclick = () => slideBy(-4);
 $('navRight').onclick = () => slideBy(4);
