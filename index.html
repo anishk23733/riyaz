@@ -87,6 +87,7 @@
     <section id="singView" aria-label="Your pitch" hidden>
       <div class="sing-notes">
         <div id="singNotes" class="sn-list" aria-label="Notes you sang"></div>
+        <button id="singFind" class="sn-btn find">Which raga?</button>
         <button id="singLive" class="sn-btn live" hidden>Live</button>
         <button id="singClear" class="sn-btn" hidden>Clear</button>
       </div>
@@ -98,6 +99,26 @@
           <span class="sr-meter" aria-hidden="true"><span class="sr-mid"></span><span id="srNeedle" class="sr-needle"></span></span>
           <span id="srCents" class="sr-cents"></span>
           <span id="srHold" class="sr-hold"></span>
+        </div>
+        <!-- Which raga? the swaras you held and the ragas that fit them (ragafind.js) -->
+        <div id="findPanel" class="find-panel" hidden>
+          <div class="fp-head">
+            <span class="strong">Which raga?</span>
+            <div class="seg small-seg fp-mode">
+              <button id="findMine">Your Sa</button><button id="findGuess">Guess Sa</button>
+            </div>
+            <span class="grow"></span>
+            <button id="findClose" class="icon-btn close" aria-label="Close">
+              <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="fp-body">
+            <div class="fp-left">
+              <div id="findHist" class="find-hist" aria-label="How long you held each swara"></div>
+              <div id="findUsed" class="fp-used"></div>
+            </div>
+            <div id="findList" class="fp-list"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -192,7 +213,30 @@
     </header>
     <div class="settings-body">
       <div class="col">
-        <div class="label">Your Sa</div>
+        <div class="label-row">
+          <span class="label">Your Sa</span>
+          <button id="humBtn" class="hum-btn" aria-pressed="false">
+            <svg width="15" height="15" viewBox="0 0 18 18" aria-hidden="true"><rect x="6.2" y="1.8" width="5.6" height="9.4" rx="2.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.6 8.6a5.4 5.4 0 0 0 10.8 0M9 14v2.4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+            <span>Hum to find</span>
+          </button>
+        </div>
+        <div id="humBox" class="hum-box" hidden>
+          <div id="humLive" class="hum-live idle">
+            <span id="humNote" class="hum-note">–</span>
+            <span id="humCents" class="hum-cents"></span>
+            <span class="sr-meter hum-meter" aria-hidden="true"><span class="sr-mid"></span><span id="humNeedle" class="sr-needle"></span></span>
+            <span id="humHz" class="muted small"></span>
+          </div>
+          <div class="hum-prog" aria-hidden="true"><span id="humBar"></span></div>
+          <div id="humMsg" class="hum-msg"></div>
+          <div class="hum-actions">
+            <button id="humSet" class="btn primary small" hidden></button>
+            <button id="humSetExact" class="btn small" hidden></button>
+            <span class="grow"></span>
+            <button id="humAgain" class="btn small" hidden>Again</button>
+            <button id="humCancel" class="btn small">Cancel</button>
+          </div>
+        </div>
         <div id="saGrid" class="sa-grid"></div>
         <div class="row">
           <span class="row-label">Octave</span>
@@ -275,6 +319,8 @@
   <script src="app.js"></script>
   <script src="pitch.js"></script>
   <script src="sing.js"></script>
+  <script src="hum.js"></script>
+  <script src="ragafind.js"></script>
   <script src="phrases.js"></script>
   <script src="library.js"></script>
 </body>

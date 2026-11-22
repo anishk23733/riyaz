@@ -21,7 +21,7 @@ const TRACE = { pass: 'rgba(236, 234, 228, .55)', raga: '#f2a33a', off: '#ff6b5e
 const Sing = {
   on: false, listening: false,
   stream: null, src: null, an: null, sink: null, ctxRef: null, data: null, winSec: 0.043, tOff: 0, vOff: 0, lastVoiced: null,
-  pts: [], notes: [], phrases: [], notesVer: 0, shownVer: -1, beats: [], raw: [], hold: null, lastHold: null,
+  pts: [], notes: [], ref: null, phrases: [], notesVer: 0, shownVer: -1, beats: [], raw: [], hold: null, lastHold: null,
   floor: 0.003, level: 0, center: 600, target: 600, lastT: -1, lastFrame: 0, lastAnalysis: 0,
   heard: false, raf: 0, w: 0, h: 0, msgText: '',
   view: null, // null = live; { t, center } while looking back
@@ -42,6 +42,7 @@ const Sing = {
 
   close() {
     this.on = false;
+    if (typeof Finder !== 'undefined') Finder.close();
     this.mute();
     cancelAnimationFrame(this.raf);
     this.ui();
@@ -180,19 +181,37 @@ const Sing = {
     this.raw.push(cents);
     if (this.raw.length > 3) this.raw.shift();
     const c3 = this.raw.length === 3 ? [...this.raw].sort((a, b) => a - b)[1] : cents;
-    this.addPoint(t - this.vOff, c3);
+    this.addPoint(t - this.vOff, c3, c3 + this.saRef());
   },
 
   inRaga(n) { return !info || info.all.includes(((n % 12) + 12) % 12); },
 
-  addPoint(t, c) {
+  // Your Sa in cents above A4. Each point also keeps its pitch in these absolute units (a),
+  // so "Which raga?" can try other Sas, and changing Sa moves the trace with it.
+  saRef() { return 1200 * Math.log2(mtof(saMidi()) / 440); },
+  saChanged() {
+    const ref = this.saRef();
+    if (this.ref == null) { this.ref = ref; return; }
+    const d = ref - this.ref;
+    this.ref = ref;
+    if (!d) return;
+    for (const p of this.pts) p.c -= d;
+    const k = Math.round(d / 100);
+    for (const n of this.notes) { n.note -= k; n.kind = this.inRaga(n.note) ? 'raga' : 'off'; }
+    this.hold = null; this.raw = []; this.lastHold = null;
+    this.center -= d; this.target -= d;
+    this.notesVer++;
+  },
+
+  addPoint(t, c, a) {
+    if (this.ref == null) this.ref = this.saRef();
     let h = this.hold;
     if (h && (t - h.lastT > GAP || Math.abs(c - h.note * 100) > HOLD_EXIT)) { this.endHold(); h = null; }
     const n = Math.round(c / 100);
     if (!h && Math.abs(c - n * 100) <= HOLD_TOL) {
       h = this.hold = { note: n, start: t, lastT: t, rest: false, kind: 'pass', sum: 0, sum2: 0, k: 0, entry: null };
     }
-    const pt = { t, c, kind: 'pass' };
+    const pt = { t, c, a, kind: 'pass' };
     this.pts.push(pt);
     if (h) {
       h.lastT = t;

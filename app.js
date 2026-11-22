@@ -1799,6 +1799,20 @@ function changedTuning() {
   save();
   renderSettings();
   Tanpura.retune();
+  if (typeof Sing !== 'undefined') Sing.saChanged();
+}
+
+// Open the raga browser on one raga (used by Sing's "Which raga?").
+function showRagaInBrowser(name) {
+  if (!ALL_RAGAS.has(name)) return;
+  browserSel = name;
+  openThaats.add(ALL_RAGAS.get(name).thaat);
+  $('search').value = '';
+  renderTree();
+  renderDetail();
+  openSheet('browser');
+  const sel = $('tree').querySelector('.tree-raga.sel');
+  if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'center' });
 }
 
 // Tabla settings
