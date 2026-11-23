@@ -1051,7 +1051,7 @@ function renderAalap(a) {
         </div>
       </div>
       <div id="prMsg" class="check-note pr-msg" hidden></div>
-      <p class="lib-why">Tap a step to work on just that step, or a stage's heading for the whole stage. With Range on, tap the first step and then the last. Loop repeats it; −5 slows it down; Guide off leaves every note for you to sing, and Sing draws your voice over the graph.</p>
+      <p class="lib-why">Tap a step to work on just that step, or a stage's heading for the whole stage. With Range on, tap the first step and then the last. Loop repeats it; −5 slows it down; Guide off leaves every note for you to sing, and Sing draws your voice over the graph. An aalap is out of taal, so it plays with the tanpura only, no tabla.</p>
       <div class="as-score">${body}</div>
       ${src}
       ${path ? prPathAbout(path) : ''}
@@ -1128,8 +1128,13 @@ function aalapFollow(b, play) {
   el.classList.add('cur');
   const sc = $('prScroll'), st = d.querySelector('.pr-sticky');
   if (!sc) return;
-  const top = el.offsetTop - sc.offsetTop, h = st ? st.offsetHeight : 0;
-  if (top < sc.scrollTop + h + 8 || top + el.offsetHeight > sc.scrollTop + sc.clientHeight - 8) { const y = Math.max(0, top - h - 16); if (sc.scrollTo) sc.scrollTo({ top: y, behavior: 'smooth' }); else sc.scrollTop = y; }
+  // keep the step just under the graph (which stays at the top while the score scrolls)
+  const r = el.getBoundingClientRect(), box = sc.getBoundingClientRect();
+  const sticky = st && getComputedStyle(st).position === 'sticky' ? st.getBoundingClientRect().bottom : box.top;
+  if (r.top < sticky + 4 || r.bottom > box.bottom - 4) {
+    const y = Math.max(0, sc.scrollTop + r.top - sticky - 10);
+    if (sc.scrollTo) sc.scrollTo({ top: y, behavior: 'smooth' }); else sc.scrollTop = y;
+  }
 }
 
 function renderAalapActions() {

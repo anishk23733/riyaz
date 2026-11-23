@@ -1013,3 +1013,4 @@ button:focus:not(:focus-visible) { outline: none; }
 @media (orientation: landscape) and (max-height: 420px) {
   .pr-sticky { position: static; }
 }
+.pr-sticky #prGraph { height: clamp(100px, 28vh, 220px); }
