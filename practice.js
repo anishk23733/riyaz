@@ -88,7 +88,7 @@ function buildExercise(ex) {
 const G = {
   canvas: null, w: 0, h: 0, dpr: 1, x0: 0, drag: null, built: null,
   // the matra each beat falls on (lands: 'sam' shifts the start so the last beat is sam)
-  offset(b) { return b.ex.lands === 'sam' ? -(b.parsed.beats.length - 1) : 0; },
+  offset(b) { return b.ex.lands === 'sam' ? -(b.parsed.beats.length - 1) : b.ex.startAt ? b.ex.startAt - 1 : 0; },
   pitch(e) { return e.oct * 12 + e.off; },
   size() {
     const cv = this.canvas;
@@ -244,6 +244,19 @@ const G = {
         c2.fillText(swaraText(letter, e.oct), xa + 1, y - lw / 2 - 3);
       }
       prev = e;
+    }
+
+    // the bandish words over their matras
+    if (b.ex.words) {
+      c2.font = 'italic 11px -apple-system, system-ui, sans-serif';
+      c2.textAlign = 'left';
+      c2.textBaseline = 'alphabetic';
+      c2.fillStyle = accent;
+      for (const w of b.ex.words) {
+        const x = this.x(g, w.b);
+        if (x < g.gut - 4 || x > this.w) continue;
+        c2.fillText(w.t, x + 2, this.h - g.bot - 3);
+      }
     }
 
     // your voice
@@ -502,10 +515,12 @@ function prItems(items, head) {
 }
 
 // a raga path's lessons in the order they are learnt: by stage, then level
+// within a stage: your class notes first, then what was composed in their method, then the rest
+const cnRank = e => (e.cn === 'notes' ? 0 : e.cn === 'method' ? 1 : 2);
 function pathItems(id) {
   const st = e => PATH_STAGES.findIndex(s => s.id === e.stage);
   return EXERCISES.filter(e => e.track === id).map((e, i) => [e, i])
-    .sort((a, b) => st(a[0]) - st(b[0]) || a[0].level - b[0].level || a[1] - b[1]).map(x => x[0]);
+    .sort((a, b) => st(a[0]) - st(b[0]) || cnRank(a[0]) - cnRank(b[0]) || a[0].level - b[0].level || a[1] - b[1]).map(x => x[0]);
 }
 const trackOf = id => TRACKS.find(t => t.id === id) || (typeof PATHS !== 'undefined' && PATHS.find(t => t.id === id)) || { name: '' };
 const isPath = ex => typeof PATHS !== 'undefined' && PATHS.some(t => t.id === ex.track);
@@ -647,6 +662,8 @@ function renderPrDetail() {
       </div>
       <div id="prMsg" class="check-note pr-msg" hidden></div>
       <p class="lib-why">${esc(ex.purpose)}</p>
+      ${ex.why ? `<div class="pr-sec pr-why"><b>Why it's built this way</b><p>${esc(ex.why)}</p></div>` : ''}
+      ${ex.flags ? `<div class="check-note">${ex.flags.map(f => esc(f)).join('<br>')}</div>` : ''}
       <div class="pr-tempo">
         <div class="pr-tempo-top">
           <span><b>Tempo</b> <span class="muted small">start ${ex.bpm.start}, target ${ex.bpm.target} BPM, ${ex.bpm.step > 0 ? '+' : ''}${ex.bpm.step} each clean session (${dir})</span></span>
@@ -665,6 +682,7 @@ function renderPrDetail() {
       ${lays.length > 1 ? `<div class="legend">Speeds: thah is one note a matra, dugun two, tigun three, chaugun four. Ladder sings them one after another, each filling the same time. Raise the tempo only when the fastest speed is clean.</div>` : ''}
       ${libN ? `<div class="legend">${libN} aalaps and taans for ${esc(b.raga.name)} are in the Library (book icon).</div>` : ''}
       ${ex.src ? `<div class="legend">Follows: ${ex.src.map(cite).join('; ')}</div>` : ''}
+      ${ex.his ? `<details class="pr-about"><summary class="muted small">As written in your notes</summary><ol class="pr-his">${ex.his.map(h => `<li>${esc(h)}</li>`).join('')}</ol></details>` : ''}
       ${prProvenance(ex)}
       ${path ? prPathAbout(path) : ''}
       <details class="pr-notation"><summary class="muted small">Notation</summary><div class="lib-notation" id="prNotation"></div></details>
@@ -687,6 +705,9 @@ function renderPrDetail() {
 
 // where the notes come from, said plainly
 function prProvenance(ex) {
+  if (ex.cn === 'notes') return `<div class="legend">From your class notes (${esc(ex.cnFile || ex.raga)}). The notes and their order are yours; the timing follows your marks: a note is a matra, [ ] is double speed, - holds one note and a long dash two. Where your page gives no rhythm (the aalap steps), the app sets one.</div>`;
+  if (ex.cn === 'method') return '<div class="check-note">Composed for this app in the method of your class notes, not from the notes themselves. The "why" says which pattern of yours it extends.</div>';
+  if (ex.cn === 'others') return '<div class="check-note">Composed for this app, Bhimsen-inspired, in the structure of your class notes (numbered steps, a palta, taans between a mukhda). Not from your notes; worth checking with your teacher.</div>';
   const link = (t, u) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>` : esc(t);
   if (ex.from) return `<div class="legend">Notes from a published notation: ${link(ex.from, ex.url)}. ${esc(ex.srcNote || 'The rhythm is set for this app.')}</div>
     <div class="check-note">Worth checking with your teacher: a notation on paper leaves out how the notes are sung.</div>`;
@@ -701,7 +722,11 @@ function prPathAbout(p) {
     <p>${esc(p.character)}</p>
     <p><b>Rests on</b> ${esc(p.nyas)}.</p>
     <p><b>Goes wrong by</b> ${esc(p.pitfalls)}.</p>
-    <p>${esc(p.neighbours)}</p></details>`;
+    <p>${esc(p.neighbours)}</p>
+    ${p.facts ? `<p><b>Your notes:</b> ${esc(p.facts)}</p>` : ''}
+    ${p.method ? `<p><b>How your notes build it</b></p>${p.method.map(m => `<p>${esc(m)}</p>`).join('')}` : ''}
+    ${p.unclear && p.unclear.length ? `<p><b>Unclear in the notes</b></p><ul>${p.unclear.map(u => `<li>${esc(u)}</li>`).join('')}</ul>` : ''}
+    ${p.unplaced && p.unplaced.some(u => !u.kept) ? `<p><b>Taans not placed yet</b> (they don't come out to their beat count by the dash and bracket rules, so they aren't in a lesson)</p><ul>${p.unplaced.filter(u => !u.kept).map(u => `<li>${esc(u.where)}: ${esc(u.text)} (${esc(u.why)})</li>`).join('')}</ul>` : ''}</details>`;
 }
 
 // the notation, beat by beat (for reading or copying)
@@ -760,7 +785,7 @@ function playPr() {
   // exercises that belong to a raga switch the app to it (tanpura and pads follow)
   if (ex.raga && ex.raga !== 'current' && S.raga !== ex.raga) useRaga(ex.raga);
   Mic.pts = []; Mic.result = null;
-  prEntry = { raga: ex.raga ? b.raga.name : prScaleRaga() ? prScaleRaga().name : 'Bilawal thaat', name: ex.name, notes: b.notes, parsed: b.parsed, lands: ex.lands, gamak: !!ex.gamak };
+  prEntry = { raga: ex.raga ? b.raga.name : prScaleRaga() ? prScaleRaga().name : 'Bilawal thaat', name: ex.name, notes: b.notes, parsed: b.parsed, lands: ex.lands, startAt: ex.startAt, gamak: !!ex.gamak };
   Lib.play(prEntry, {
     lay: 1, tabla: S.prTabla !== false, loop: true,
     onToken: () => {},

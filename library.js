@@ -73,7 +73,7 @@ const Lib = {
   // Where the phrase starts, in matras relative to a sam (negative = before it).
   offsetM() {
     const n = this.parsed.beats.length;
-    return this.entry.lands === 'sam' ? -(n - 1) / this.lay() : 0;
+    return this.entry.lands === 'sam' ? -(n - 1) / this.lay() : this.entry.startAt ? this.entry.startAt - 1 : 0;
   },
 
   // The first start time at or after `t` that keeps the phrase in its place in the taal.
@@ -315,7 +315,7 @@ function useRaga(name) {
 function matraLabels(parsed, entry) {
   const tl = Tabla.taal(), M = tl.matras, lay = LAYS.includes(S.libLay) ? S.libLay : 1;
   const n = parsed.beats.length;
-  const off = entry.lands === 'sam' ? -(n - 1) / lay : 0;
+  const off = entry.lands === 'sam' ? -(n - 1) / lay : entry.startAt ? entry.startAt - 1 : 0;
   return parsed.beats.map((_, i) => {
     const p = off + i / lay;
     if (Math.abs(p - Math.round(p)) > 1e-6) return null;
