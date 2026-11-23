@@ -54,7 +54,7 @@ const TRACKS = [
   { id: 'swar', name: 'Swar', about: 'Sa and steady notes: the voice settled on the drone' },
   { id: 'alankar', name: 'Alankars', about: 'Paltas: patterns moved through the scale, in thah, dugun and chaugun' },
   { id: 'orn', name: 'Ornaments', about: 'Meend, kan, khatka, murki, andolan and gamak, one at a time' },
-  { id: 'raga', name: 'Raga', about: "Your current raga's aaroh, pakad and phrases, in time" },
+  { id: 'raga', name: 'Any raga', about: "Templates over whichever raga you choose: its aaroh, pakad and phrases. The six Library ragas have their own paths below." },
   { id: 'taan', name: 'Taans', about: 'Speed with control: bursts, sapaat and alankar taans landing on sam' },
   { id: 'laya', name: 'Laya', about: 'Taal and layakari: sam and khali, dugun to chaugun, aad, tihai' },
   { id: 'ear', name: 'Ear', about: 'Hear it, then sing it back: the app plays, you answer' },

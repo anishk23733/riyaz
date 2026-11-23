@@ -986,3 +986,6 @@ button:focus:not(:focus-visible) { outline: none; }
   #practice .pr-actions .btn.primary { min-width: 84px; }
   #practice .pr-actions .lib-lay button { min-width: 36px; padding: 0 8px; }
 }
+.pr-group { flex: none; padding: 14px 14px 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--text); border-top: 1px solid rgba(255,255,255,.08); margin-top: 6px; }
+.pr-about { margin: 10px 0; }
+.pr-about p { margin: 6px 0; font-size: 14px; line-height: 1.45; }

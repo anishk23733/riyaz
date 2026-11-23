@@ -1,7 +1,7 @@
 'use strict';
 /* global $, S, esc, clamp, save, audio, unlock, ctx, saMidi, mtof, OFF, swaraText, ALL_RAGAS, currentRaga,
    Tabla, Tanpura, TAALS, vibhagOf, renderSettings, renderTablaSettings, updateTablaUI, keepInStep, openSheet,
-   Lib, parseNotes, useRaga, Pitch, Sing, EXERCISES, TRACKS, LEVEL_NAMES, SOURCES, exerciseNotes, ragaScale, BILAWAL */
+   Lib, parseNotes, useRaga, Pitch, Sing, EXERCISES, TRACKS, LEVEL_NAMES, SOURCES, exerciseNotes, ragaScale, BILAWAL, PATHS, PATH_STAGES */
 
 // =====================================================================
 // Practice: a graded riyaz course (exercises.js). Each exercise is drawn as a note graph, swaras
@@ -463,13 +463,20 @@ function renderPrSide() {
       <span class="pr-bar" aria-hidden="true"><span style="width:${Math.round(100 * mastered / items.length)}%"></span></span>
       <span class="right">${mastered}/${items.length}</span></button>`;
     if (!open) continue;
-    let lv = 0;
-    for (const e of items) {
-      if (e.level !== lv) { lv = e.level; html += `<div class="pr-level">${esc(LEVEL_NAMES[lv])}</div>`; }
-      const p = Prog.ex(e.id);
-      const status = p.mastered ? '<span class="pr-ok" aria-label="Mastered">✓</span>' : p.bpm && p.bpm !== e.bpm.start ? `<span class="pr-at">${p.bpm}</span>` : '';
-      html += `<button class="tree-raga lib-item pr-item${prSel === e.id ? ' sel' : ''}${Lib.playing && prEntry && Lib.entry === prEntry && prBuilt && prBuilt.ex === e ? ' playing' : ''}" data-ex="${e.id}">
-        ${LV_DOTS(e.level)}<span class="nm">${esc(e.name)}</span>${Prog.doneToday(e.id) ? '<span class="pr-dot" aria-label="Practised today"></span>' : ''}<span class="right">${status}</span></button>`;
+    html += prItems(items, e => LEVEL_NAMES[e.level]);
+  }
+  if (typeof PATHS !== 'undefined') {
+    html += `<div class="pr-group">Raga paths</div>`;
+    for (const t of PATHS) {
+      const items = pathItems(t.id);
+      if (!items.length) continue;
+      const mastered = items.filter(e => Prog.mastered(e)).length;
+      const open = prOpenTracks.has(t.id);
+      html += `<button class="tree-thaat pr-track${open ? ' open' : ''}" data-track="${t.id}">
+        <span class="caret">${open ? '▾' : '▸'}</span><span>${esc(t.name)}</span>
+        <span class="pr-bar" aria-hidden="true"><span style="width:${Math.round(100 * mastered / items.length)}%"></span></span>
+        <span class="right">${mastered}/${items.length}</span></button>`;
+      if (open) html += prItems(items, e => (PATH_STAGES.find(s => s.id === e.stage) || {}).name || '');
     }
   }
   side.innerHTML = html;
@@ -480,6 +487,29 @@ function renderPrSide() {
   side.querySelectorAll('[data-ex]').forEach(b => { b.onclick = () => { prFromPlan = null; selectPr(b.dataset.ex); }; });
 }
 
+// the rows of one track or path, with a heading wherever `head` changes
+function prItems(items, head) {
+  let html = '', h = null;
+  for (const e of items) {
+    const hh = head(e);
+    if (hh !== h) { h = hh; html += `<div class="pr-level">${esc(h)}</div>`; }
+    const p = Prog.ex(e.id);
+    const status = p.mastered ? '<span class="pr-ok" aria-label="Mastered">✓</span>' : p.bpm && p.bpm !== e.bpm.start ? `<span class="pr-at">${p.bpm}</span>` : '';
+    html += `<button class="tree-raga lib-item pr-item${prSel === e.id ? ' sel' : ''}${Lib.playing && prEntry && Lib.entry === prEntry && prBuilt && prBuilt.ex === e ? ' playing' : ''}" data-ex="${e.id}">
+      ${LV_DOTS(e.level)}<span class="nm">${esc(e.name)}</span>${Prog.doneToday(e.id) ? '<span class="pr-dot" aria-label="Practised today"></span>' : ''}<span class="right">${status}</span></button>`;
+  }
+  return html;
+}
+
+// a raga path's lessons in the order they are learnt: by stage, then level
+function pathItems(id) {
+  const st = e => PATH_STAGES.findIndex(s => s.id === e.stage);
+  return EXERCISES.filter(e => e.track === id).map((e, i) => [e, i])
+    .sort((a, b) => st(a[0]) - st(b[0]) || a[0].level - b[0].level || a[1] - b[1]).map(x => x[0]);
+}
+const trackOf = id => TRACKS.find(t => t.id === id) || (typeof PATHS !== 'undefined' && PATHS.find(t => t.id === id)) || { name: '' };
+const isPath = ex => typeof PATHS !== 'undefined' && PATHS.some(t => t.id === ex.track);
+
 function selectPr(id) {
   const ex = EXERCISES.find(e => e.id === id);
   if (!(Lib.playing && prBuilt && prBuilt.ex === ex)) { if (prEntry && Lib.entry === prEntry) Lib.stop(); }
@@ -489,6 +519,7 @@ function selectPr(id) {
   Mic.pts = []; Mic.lastPts = []; Mic.result = null;
   if (ex) {
     prOpenTracks.add(ex.track);
+    if (isPath(ex)) S.prPath = ex.track;
     // start at this exercise's working tempo
     if (!Lib.playing) setPrTempo(Prog.bpm(ex));
   }
@@ -498,6 +529,12 @@ function selectPr(id) {
 
 // ---------- Today's riyaz: one exercise from each part of practice, in the traditional order ----------
 function prLevel() { return clamp(S.prLevel || 3, 1, 4); }
+// the raga path for today: your current raga's, else the last one you opened, else the first
+function todayPath() {
+  if (typeof PATHS === 'undefined') return null;
+  const r = currentRaga(), has = p => pathItems(p.id).length;
+  return PATHS.find(p => r && p.raga === r.name && has(p)) || PATHS.find(p => p.id === S.prPath && has(p)) || PATHS.find(has) || null;
+}
 function todayPlan() {
   const L = prLevel(), mins = S.prMinutes || 30;
   const pick = (track, skip = []) => {
@@ -514,11 +551,22 @@ function todayPlan() {
   const day = Math.floor(Date.now() / 864e5);
   const plan = [];
   const add = (track, why, skip) => { const e = pick(track, skip); if (e && !plan.some(p => p.ex === e)) plan.push({ ex: e, why }); };
+  // in a raga path, the next lesson not yet mastered, in the path's own order
+  const addPath = (path, stages, why) => {
+    const items = pathItems(path.id).filter(e => stages.includes(e.stage));
+    const at = items.filter(e => e.level <= Math.max(L, 2));
+    const e = at.find(x => !Prog.mastered(x)) || at[day % Math.max(1, at.length)];
+    if (e && !plan.some(p => p.ex === e)) plan.push({ ex: e, why });
+  };
   add('swar', 'Warm up on Sa');
   add('alankar', 'Alankar');
   if (mins >= 30) add('alankar', 'Second alankar', plan.map(p => p.ex));
   add('orn', 'Ornament');
-  add('raga', 'Raga');
+  const path = todayPath();
+  if (path) {
+    addPath(path, ['swar', 'chalan', 'badhat', 'orn'], `Raga · ${path.name}`);
+    if (mins >= 30) addPath(path, ['laya', 'taan'], `Raga taan · ${path.name}`);
+  } else add('raga', 'Raga');
   add(day % 2 ? 'taan' : 'laya', day % 2 ? 'Speed' : 'Laya');
   if (mins >= 45) add(day % 2 ? 'laya' : 'taan', day % 2 ? 'Laya' : 'Speed');
   add('ear', 'Ear');
@@ -539,12 +587,12 @@ function renderToday() {
         <div class="seg small-seg" role="group" aria-label="Level">${[1, 2, 3, 4].map(l => `<button data-lv="${l}" class="${L === l ? 'sel' : ''}">${esc(LEVEL_NAMES[l])}</button>`).join('')}</div>
         <div class="seg small-seg" role="group" aria-label="Minutes">${[15, 30, 45].map(m => `<button data-min="${m}" class="${(S.prMinutes || 30) === m ? 'sel' : ''}">${m} min</button>`).join('')}</div>
       </div>
-      <p class="lib-why">In the usual order of a riyaz: settle on Sa, alankars from slow to fast, an ornament, the raga, then speed or laya, and a little ear work. Each one is the next exercise you haven't mastered at the level you pick.</p>
+      <p class="lib-why">In the usual order of a riyaz: settle on Sa, alankars from slow to fast, an ornament, then the raga (the next lessons in its own path: ${esc(todayPath() ? todayPath().name : 'choose a raga')}), speed or laya, and a little ear work. Each one is the next exercise you haven't mastered at the level you pick. The raga follows the one chosen on the main screen when it has a path.</p>
       <div class="pr-plan">${plan.map((p, i) => {
         const done = Prog.doneToday(p.ex.id), lay = exLay(p.ex);
         return `<button class="pr-row${done ? ' done' : ''}" data-plan="${i}">
           <span class="pr-n">${done ? '✓' : i + 1}</span>
-          <span class="pr-what"><span class="k">${esc(p.why)} · ${esc(LEVEL_NAMES[p.ex.level])}</span><span class="v">${esc(p.ex.name)}</span></span>
+          <span class="pr-what"><span class="k">${esc(p.why)} · ${esc(isPath(p.ex) ? (PATH_STAGES.find(x => x.id === p.ex.stage) || {}).name : LEVEL_NAMES[p.ex.level])}</span><span class="v">${esc(p.ex.name)}</span></span>
           <span class="pr-when"><b>${p.min} min</b><span>${Prog.bpm(p.ex)} BPM · ${esc(LAY_NAME[lay] || lay)}</span></span></button>`;
       }).join('')}</div>
       <div class="legend">Mark an exercise clean when you got through it without a slip (or Sing scored it 80% in tune); next time it starts a few BPM closer to its target. Progress stays in this browser.</div>
@@ -574,10 +622,10 @@ function renderPrDetail() {
   }
   prBuilt = buildExercise(ex);
   const b = prBuilt, p = Prog.ex(ex.id);
-  const tr = TRACKS.find(t => t.id === ex.track);
+  const tr = trackOf(ex.track), path = isPath(ex) ? tr : null;
   const ragaName = ex.raga && ex.raga !== 'current' ? ex.raga : ex.raga === 'current' ? (b.raga.name) : null;
   const scaleName = ex.scale ? (prScaleRaga() ? `${prScaleRaga().isThaat ? prScaleRaga().thaat : prScaleRaga().name} notes` : 'Bilawal') : null;
-  const meta = [tr.name, LEVEL_NAMES[ex.level], ex.taal, ragaName || scaleName, `${ex.minutes} min`].filter(Boolean).join(' · ');
+  const meta = [path ? `${tr.name} path` : tr.name, path ? (PATH_STAGES.find(x => x.id === ex.stage) || {}).name : null, LEVEL_NAMES[ex.level], ex.taal, path ? null : ragaName || scaleName, `${ex.minutes} min`].filter(Boolean).join(' · ');
   const work = Prog.bpm(ex);
   const dir = ex.bpm.step > 0 ? 'faster is harder' : 'slower is harder: longer notes';
   const lays = exLays(ex);
@@ -617,7 +665,8 @@ function renderPrDetail() {
       ${lays.length > 1 ? `<div class="legend">Speeds: thah is one note a matra, dugun two, tigun three, chaugun four. Ladder sings them one after another, each filling the same time. Raise the tempo only when the fastest speed is clean.</div>` : ''}
       ${libN ? `<div class="legend">${libN} aalaps and taans for ${esc(b.raga.name)} are in the Library (book icon).</div>` : ''}
       ${ex.src ? `<div class="legend">Follows: ${ex.src.map(cite).join('; ')}</div>` : ''}
-      ${ex.check ? '<div class="check-note">Written for this app from descriptions of the raga, not transcribed. Worth checking with your teacher; you can edit exercises.js.</div>' : ''}
+      ${prProvenance(ex)}
+      ${path ? prPathAbout(path) : ''}
       <details class="pr-notation"><summary class="muted small">Notation</summary><div class="lib-notation" id="prNotation"></div></details>
     </div>
     <div class="detail-actions lib-actions pr-actions" id="prActions"></div>`;
@@ -634,6 +683,25 @@ function renderPrDetail() {
   det.addEventListener('toggle', () => { if (det.open) $('prNotation').innerHTML = flatNotation(b); });
   G.draw(b, null, Mic.lastPts);
   G.dirty = true;
+}
+
+// where the notes come from, said plainly
+function prProvenance(ex) {
+  const link = (t, u) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>` : esc(t);
+  if (ex.from) return `<div class="legend">Notes from a published notation: ${link(ex.from, ex.url)}. ${esc(ex.srcNote || 'The rhythm is set for this app.')}</div>
+    <div class="check-note">Worth checking with your teacher: a notation on paper leaves out how the notes are sung.</div>`;
+  if (ex.total) return `<div class="check-note">${ex.sourced} of these ${ex.total} aalaps follow a published notation; the rest are Bhimsen-inspired, composed for this app in the Kirana style. Each one's source is on its own lesson.</div>`;
+  if (ex.composed) return `${ex.ref ? `<div class="legend">The shape follows how Bhimsen Joshi built taans, as described in ${esc(ex.ref)}. The notes are composed for this app.</div>` : ''}
+    <div class="check-note">Bhimsen-inspired, in the Kirana style: composed for this app, not transcribed from his recordings. Worth checking with your teacher; you can edit ragapaths.js${ex.fromLib ? ' and phrases.js' : ''}.</div>`;
+  if (ex.check) return '<div class="check-note">Written for this app from descriptions of the raga, not transcribed. Worth checking with your teacher; you can edit exercises.js.</div>';
+  return '';
+}
+function prPathAbout(p) {
+  return `<details class="pr-about"><summary class="muted small">About ${esc(p.name)}</summary>
+    <p>${esc(p.character)}</p>
+    <p><b>Rests on</b> ${esc(p.nyas)}.</p>
+    <p><b>Goes wrong by</b> ${esc(p.pitfalls)}.</p>
+    <p>${esc(p.neighbours)}</p></details>`;
 }
 
 // the notation, beat by beat (for reading or copying)
