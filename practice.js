@@ -201,9 +201,10 @@ const G = {
         const frac = e.glide > 1 ? 0.65 : 0.12;
         path.push([xa, py], [xa + (xb - xa) * frac, y], [xb - pad, y]);
       } else if (e.andolan) {
-        const n = Math.max(2, Math.round((xb - xa) / 14));
-        for (let j = 0; j <= n * 4; j++) {
-          const t = j / (n * 4), x = xa + pad + (xb - xa - 2 * pad) * t;
+        // as many slow swings as the harmonium plays (one every 0.9 s)
+        const n = Math.max(1, Math.round(e.len * (60 / S.bpm) / 0.9));
+        for (let j = 0; j <= n * 16; j++) {
+          const t = j / (n * 16), x = xa + pad + (xb - xa - 2 * pad) * t;
           const env = Math.min(1, t * 6, (1 - t) * 6);
           path.push([x, y + g.rowH * 0.32 * env * (0.5 - 0.5 * Math.cos(2 * Math.PI * n * t))]);
         }
@@ -578,7 +579,7 @@ function renderPrDetail() {
   const scaleName = ex.scale ? (prScaleRaga() ? `${prScaleRaga().isThaat ? prScaleRaga().thaat : prScaleRaga().name} notes` : 'Bilawal') : null;
   const meta = [tr.name, LEVEL_NAMES[ex.level], ex.taal, ragaName || scaleName, `${ex.minutes} min`].filter(Boolean).join(' · ');
   const work = Prog.bpm(ex);
-  const dir = ex.bpm.step > 0 ? 'faster' : 'slower (longer notes)';
+  const dir = ex.bpm.step > 0 ? 'faster is harder' : 'slower is harder: longer notes';
   const lays = exLays(ex);
   const lay = exLay(ex);
   const cleanList = (p.clean || []).slice(-3).reverse().map(c => `${c.bpm} BPM ${LAY_SHORT[c.lay] || ''} on ${c.d.slice(5)}`).join(', ');
@@ -600,7 +601,7 @@ function renderPrDetail() {
       <p class="lib-why">${esc(ex.purpose)}</p>
       <div class="pr-tempo">
         <div class="pr-tempo-top">
-          <span><b>Tempo</b> <span class="muted small">start ${ex.bpm.start}, target ${ex.bpm.target} BPM, ${ex.bpm.step > 0 ? '+' : ''}${ex.bpm.step} each clean session (${dir} is harder)</span></span>
+          <span><b>Tempo</b> <span class="muted small">start ${ex.bpm.start}, target ${ex.bpm.target} BPM, ${ex.bpm.step > 0 ? '+' : ''}${ex.bpm.step} each clean session (${dir})</span></span>
         </div>
         <div class="pr-tempo-row">
           <span>Working at <b>${work} BPM</b>${lays.length > 1 ? ` · ${esc(LAY_NAME[lay] || lay)}` : ''}${p.mastered ? ' · <span class="pr-ok">mastered</span>' : ''}</span>
