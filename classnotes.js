@@ -493,10 +493,10 @@ const CN_METHOD = {
     taans: [
       { name: 'Ayo ree basant: same launch, higher target', why: "Your 'ajahu na aaye' taan 2 applied to the asthaayi of 'Ayo ree basant': S G M is the launch, aimed at Dha, Ni and taar Sa in turn, then a falling release to Sa, each line two matras longer than the last.", bandish: 'ayo', section: 'ast',
         lines: ['[SGM D- MGS-]', '[SGM DN- DMG-]', '[SGM DNS”- NDMGS-]'] },
-      { name: 'Repeated notes, then the run (bridge taan pattern on Ga)', why: "Your bridge taan pressures one note by repeating it off the beat (M - M - M M), then lets go in a run. Here the same rhythm on Ga, the note your bridge skips, then the run down.", bandish: 'ayo', section: 'ast',
-        lines: ['[G- G- GG] [GG- G- GG] [MG MG SN’ S-]'] },
-      { name: 'Converging on Ma', why: "Your converging runs end on taar Sa. These converge downward on Ma, Bhinna Shadja's centre: D M, N D M, Ṡ N D M, Ġ Ṡ N D M, then G M D N Ṡ to the mukhda.", bandish: 'ayo', section: 'ant',
-        lines: ['[DM-] [NDM-] [S”NDM-] [G”S”NDM-] [GMDNS”]'] },
+      { name: 'Repeated notes, then the run, on Ga and Ma', why: "Your bridge taan presses on one note by repeating it off the beat (M - M - M M, M M - M - M M), then lets go in a run. Here the same rhythm on Ga, the note your bridge skips, released down to Sa; then on Ma, released through D M G to Ga, so the mukhda can start from Ga. Two cycles.", bandish: 'ayo', section: 'ast',
+        lines: ['[G- G- GG] [GG- G- GG] [MG MG SN’ S-]', '[M- M- MM] [MM- M- MM] [DM DM GM GS N’S SG]'] },
+      { name: 'Converging on Ma', why: "Your converging runs end on taar Sa. These converge downward on Ma, Bhinna Shadja's centre: D M, N D M, Ṡ N D M, Ġ Ṡ N D M, each one note longer, then a fast G M D N Ṡ up to the mukhda.", bandish: 'ayo', section: 'ant',
+        lines: ['DM- NDM- S”NDM- G”S”NDM- [GMDNS”] S”-'] },
     ],
   },
   'Patdeep': {
