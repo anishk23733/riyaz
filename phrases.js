@@ -9,6 +9,9 @@
 //     -            hold the previous note for that slot (a whole beat, or part of one)
 //     _            silence for that slot
 //     ~            glide (meend) into the next note: "~G" or "M~G"
+//     ~~           slow meend: most of the note is the slide: "~~G"
+//     ^            andolan: a slow swing on the note: "^g"
+//     ?            your turn: shown and timed but not played: "?G" (used by Practice)
 //     (x)          kan: a quick touch of x before the next note: "(G)R"
 //     |            vibhag line, only for reading (ignored)
 //

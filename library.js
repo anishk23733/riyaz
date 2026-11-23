@@ -10,8 +10,10 @@
 // =====================================================================
 
 // ---------- notation ----------
-// "N.RGM DNS'- | ~R - S" -> beats of slots; events = the notes with their beat position and length
-const SLOT_RE = /\(([SrRgGmMPdDnN])([.']?)\)|(~)|([SrRgGmMPdDnN])([.']?)|(-)|(_)/g;
+// "N.RGM DNS'- | ~R - S" -> beats of slots; events = the notes with their beat position and length.
+// Before a note: (x) kan, ~ quick meend into it, ~~ slow meend (most of the note is the slide),
+// ^ andolan (a slow swing on the note), ? your turn (drawn and timed, but not played).
+const SLOT_RE = /\(([SrRgGmMPdDnN])([.']?)\)|(~)|(\^)|(\?)|([SrRgGmMPdDnN])([.']?)|(-)|(_)/g;
 const octOf = o => o === '.' ? -1 : o === "'" ? 1 : 0;
 
 function parseNotes(str) {
@@ -20,13 +22,18 @@ function parseNotes(str) {
   for (const tok of str.trim().split(/\s+/)) {
     if (tok === '|') { bar = true; continue; }
     const slots = [];
-    let kan = null, glide = false;
+    let kan = null, glide = 0, andolan = false, silent = false;
     for (const m of tok.matchAll(SLOT_RE)) {
       if (m[1]) kan = { off: OFF[m[1]], oct: octOf(m[2]) };
-      else if (m[3]) glide = true;
-      else if (m[4]) { slots.push({ n: { off: OFF[m[4]], oct: octOf(m[5]), kan, glide } }); kan = null; glide = false; }
-      else if (m[6]) slots.push({ hold: true });
-      else if (m[7]) slots.push({ rest: true });
+      else if (m[3]) glide++;
+      else if (m[4]) andolan = true;
+      else if (m[5]) silent = true;
+      else if (m[6]) {
+        slots.push({ n: { off: OFF[m[6]], oct: octOf(m[7]), kan, glide, andolan, silent } });
+        kan = null; glide = 0; andolan = false; silent = false;
+      }
+      else if (m[8]) slots.push({ hold: true });
+      else if (m[9]) slots.push({ rest: true });
     }
     if (!slots.length) continue;
     const b = beats.length, len = 1 / slots.length;
@@ -46,6 +53,9 @@ const LAYS = [0.5, 1, 2];
 const Lib = {
   entry: null, parsed: null, playing: false, timer: null, raf: 0,
   pass: null, voice: null, voices: [], ui: [], startedTabla: false, onToken: null,
+  // opts (from Practice): { lay: notes per matra, tabla, loop, onToken(ti), onChange() }.
+  // Without opts the Library's own settings apply.
+  opts: null,
 
   midiOf(e) { return saMidi() + e.oct * 12 + e.off; },
 
@@ -57,7 +67,9 @@ const Lib = {
   },
 
   beatSec() { return 60 / S.bpm; },
-  lay() { return LAYS.includes(S.libLay) ? S.libLay : 1; },
+  lay() { return this.opts ? this.opts.lay || 1 : LAYS.includes(S.libLay) ? S.libLay : 1; },
+  useTabla() { return this.opts ? !!this.opts.tabla : S.libTabla !== false; },
+  looping() { return this.opts ? !!this.opts.loop : !!S.libLoop; },
   // Where the phrase starts, in matras relative to a sam (negative = before it).
   offsetM() {
     const n = this.parsed.beats.length;
@@ -75,17 +87,19 @@ const Lib = {
     return firstSam + k * M * beat + off;
   },
 
-  play(entry) {
+  play(entry, opts) {
     this.stop();
     stopPhrase();
     unlock();
     const c = audio();
+    this.opts = opts || null;
     this.entry = entry;
-    this.parsed = parseNotes(entry.notes);
+    this.parsed = entry.parsed || parseNotes(entry.notes);
+    this.pass = null;
     this.playing = true;
     const now = c.currentTime, beat = this.beatSec();
     let t0;
-    if (S.libTabla !== false && !Tabla.playing) {
+    if (this.useTabla() && !Tabla.playing) {
       // Start the tabla a vibhag ahead of the phrase, so you hear where you are in the taal.
       const tl = Tabla.taal(), M = tl.matras;
       const lead = tl.vibhags[0] || 4, s = this.offsetM();
@@ -94,7 +108,7 @@ const Lib = {
       Tabla.start(((from % M) + M) % M, at);
       this.startedTabla = true;
       t0 = at + (s - from) * beat;
-    } else if (S.libTabla !== false) {
+    } else if (this.useTabla()) {
       t0 = this.nextStart(now + 0.2);
     } else t0 = now + 0.15;
     this.newPass(t0);
@@ -109,7 +123,8 @@ const Lib = {
 
   newPass(t0) {
     const spb = this.beatSec() / this.lay();
-    this.pass = { t0, spb, i: 0, end: t0 + this.parsed.beats.length * spb };
+    this.pass = { t0, spb, i: 0, end: t0 + this.parsed.beats.length * spb, n: this.pass && this.playing ? this.pass.n + 1 : 0 };
+    if (this.opts && this.opts.onPass) this.opts.onPass(this.pass);
   },
 
   tick() {
@@ -119,9 +134,9 @@ const Lib = {
       const p = this.pass, ev = this.parsed.events;
       if (p.i >= ev.length) {
         if (p.end > ahead) return;
-        if (!S.libLoop) { if (ctx.currentTime > p.end + 0.4) this.stop(); return; }
+        if (!this.looping()) { if (ctx.currentTime > p.end + 0.4) this.stop(); return; }
         const beat = this.beatSec();
-        this.newPass(Tabla.playing && S.libTabla !== false ? this.nextStart(p.end + beat * 0.99) : p.end + 2 * beat);
+        this.newPass(Tabla.playing && this.useTabla() ? this.nextStart(p.end + beat * 0.99) : p.end + 2 * beat);
         continue;
       }
       const e = ev[p.i];
@@ -133,6 +148,12 @@ const Lib = {
   },
 
   schedule(e, t, dur, next) {
+    if (e.silent) {
+      // your turn: the key is lifted and nothing plays, but the note is still shown
+      if (this.voice) { this.voice.stop(false, t - 0.01); this.voice = null; this.lastMidi = null; }
+      this.ui.push({ t, ti: e.ti });
+      return;
+    }
     const r = ALL_RAGAS.get(this.entry.raga);
     const midi = this.midiOf(e);
     const kanLen = e.kan ? Math.min(0.07, dur * 0.3) : 0;
@@ -143,7 +164,8 @@ const Lib = {
       this.voices.push(v);
       if (this.voices.length > 8) this.voices.shift();
     } else if (e.glide && !e.kan) {
-      v.setPitch(midi, Math.min(0.09, dur * 0.25), t);
+      // ~ a quick slide into the note; ~~ a slow meend that takes about two thirds of it
+      v.setPitch(midi, e.glide > 1 ? Math.max(0.05, dur * 0.2) : Math.min(0.09, dur * 0.25), t);
     } else if (startMidi === this.lastMidi) {
       v.articulate(t);
     } else {
@@ -155,10 +177,17 @@ const Lib = {
       if (startMidi === this.lastMidi) v.articulate(t);
       v.setPitch(midi, Math.min(0.025, dur * 0.12), t + dur * 0.3);
     }
+    if (e.andolan) {
+      // andolan: a slow, wide swing that dips below the note and comes back, about once a second
+      const per = 0.9;
+      let k = 0;
+      for (let x = t + 0.3; x < t + dur - per * 0.4; x += per / 2) v.setPitch(midi + (k++ % 2 ? 0.05 : -0.38), per * 0.16, x);
+      v.setPitch(midi, 0.04, Math.max(t + 0.3, t + dur - per * 0.3));
+    }
     this.lastMidi = midi;
     // a gap after this note (a rest, or the end of the phrase): lift the key
     const end = t + dur;
-    const gap = !next || next.b * this.pass.spb + this.pass.t0 > end + 1e-4;
+    const gap = !next || next.silent || next.b * this.pass.spb + this.pass.t0 > end + 1e-4;
     if (gap) {
       v.stop(false, end - 0.01);
       this.voice = null;
@@ -172,9 +201,10 @@ const Lib = {
     const now = ctx.currentTime - (ctx.outputLatency || 0);
     let cur = null;
     while (this.ui.length && this.ui[0].t <= now) cur = this.ui.shift();
-    if (cur && this.onToken) this.onToken(cur.ti);
+    const on = this.opts ? this.opts.onToken : this.onToken;
+    if (cur && on) on(cur.ti);
     // after the last note: clear the highlight
-    if (!cur && this.pass && this.pass.i >= this.parsed.events.length && now > this.pass.end && this.onToken) this.onToken(-1);
+    if (!cur && this.pass && this.pass.i >= this.parsed.events.length && now > this.pass.end && on) on(-1);
   },
 
   stop() {
@@ -189,12 +219,16 @@ const Lib = {
     this.ui = [];
     if (this.startedTabla && Tabla.playing) Tabla.stop();
     this.startedTabla = false;
-    if (this.onToken) this.onToken(-1);
+    const on = this.opts ? this.opts.onToken : this.onToken;
+    if (on) on(-1);
     this.changed();
   },
 
-  restart() { if (this.playing && this.entry) this.play(this.entry); },
-  changed() { if (typeof libChanged === 'function') libChanged(); },
+  restart() { if (this.playing && this.entry) this.play(this.entry, this.opts); },
+  changed() {
+    if (typeof libChanged === 'function') libChanged();
+    if (this.opts && this.opts.onChange) this.opts.onChange();
+  },
 };
 
 // ---------- the Library sheet ----------

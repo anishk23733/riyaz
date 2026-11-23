@@ -67,6 +67,9 @@
       </button>
       </div>
       <div class="topbar-right">
+      <button id="practiceBtn" class="icon-btn" aria-label="Practice: graded exercises and today's riyaz">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 15h4v-4h4V7h4V3h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
       <button id="libraryBtn" class="icon-btn lib-btn" aria-label="Library: aalaps and taans">
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 3v12M6 3v12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M9.2 3.4l2.9-.8 3.4 12-2.9.8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
       </button>
@@ -173,6 +176,34 @@
   </section>
 
   <!-- Library: aalaps and taans to learn by ear (phrases.js) -->
+  <section id="practice" class="sheet" hidden>
+    <header class="sheet-head">
+      <button id="prClose" class="icon-btn close" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <span class="sheet-title">Practice</span>
+      <div id="prScale" class="seg small-seg pr-scale" role="group" aria-label="Notes for scale exercises"></div>
+      <span class="grow"></span>
+      <button id="prTanpura" class="tanpura-btn lib-pill" aria-pressed="false">
+        <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 9h2M6 5v8M9 3v12M12 6v6M15 8v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Tanpura</span>
+      </button>
+      <button id="prTabla" class="tanpura-btn lib-pill" aria-pressed="true" aria-label="Play exercises with the tabla">
+        <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><ellipse cx="6" cy="6.5" rx="4" ry="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5v4c0 1.1 1.8 2 4 2s4-.9 4-2v-4" fill="none" stroke="currentColor" stroke-width="1.5"/><ellipse cx="13" cy="9" rx="3" ry="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 9v3.5c0 .9 1.3 1.6 3 1.6s3-.7 3-1.6V9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>Tabla</span>
+      </button>
+      <div class="stepper lib-tempo" aria-label="Tempo">
+        <button data-prbpm="-5" aria-label="Slower">−5</button>
+        <span class="value"><b id="prBpm">80</b> <span class="muted small">BPM</span></span>
+        <button data-prbpm="5" aria-label="Faster">+5</button>
+      </div>
+    </header>
+    <div class="browser-body">
+      <div id="prSide" class="lib-side pr-side"></div>
+      <article id="prDetail"></article>
+    </div>
+  </section>
+
   <section id="library" class="sheet" hidden>
     <header class="sheet-head">
       <button id="libClose" class="icon-btn close" aria-label="Close">
@@ -323,5 +354,7 @@
   <script src="ragafind.js"></script>
   <script src="phrases.js"></script>
   <script src="library.js"></script>
+  <script src="exercises.js"></script>
+  <script src="practice.js"></script>
 </body>
 </html>
