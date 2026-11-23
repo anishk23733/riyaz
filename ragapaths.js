@@ -4,12 +4,16 @@
 //
 // Each path goes in the order a raga is usually learnt:
 //   its notes      the raga's swaras as it sings them, held against the drone
-//   chalan, nyas   its phrases and the notes it rests on; its phrases sung back
-//   badhat         the Library's aalaps for this raga, one at a time, slow, then all of them
-//                  as call and answer
-//   ornaments      the movements that belong to this raga (its meends, kans, andolan)
-//   layakari       its pakad through thah, dugun, tigun and chaugun
-//   taans          a palta that keeps the raga's rules, then the Library's taans for it
+//   chalan, nyas   the notes it rests on, each reached by a phrase of its own
+//   badhat         the Library's aalaps for this raga, one at a time, slow, and one long
+//                  Bhimsen-inspired aalap
+//   ornaments      the movement that belongs to this raga (its meend, kan or andolan)
+//   taans          the Library's turning and leaping taans for it
+//
+// Only lessons written note by note for one raga and one point are kept. Lessons that were the
+// same template run over every raga (phrases echoed back, the pakad through the layakari, the
+// whole badhat as call and answer, a rolling four-note palta, one sapaat shape per raga, and the
+// Library's straight, gamak and tihai runs) were taken out.
 //
 // What is sourced and what isn't:
 //   lessons made from Library phrases keep the Library's own source: src 'notation' phrases
@@ -80,9 +84,6 @@ const PATH_LESSONS = {
       purpose: "In Yaman's pakad (N̤ R G R, P R, N̤ R S) the voice slides from Pa down to Re through Ma and Ga without stopping on them. This lesson isolates that slide.",
       listen: "One unbroken slide that lands on Re exactly, with Ma and Ga heard only in passing.",
       mistakes: "Stepping down P M G R as separate notes; overshooting Re and correcting." },
-    alankar: { name: 'Yaman palta: N R G cells',
-      tokens: "N. R G R  R G M G  G M D M  M D N D  D N S' N  N R' S' -  S' N D P  N D P M  D P M G  P M G R  M G R S",
-      purpose: "A four-note palta that keeps Yaman's rules: up from N̤ R G with Pa left out (M D N), down through Pa, ending M G R S." },
   },
   'Puriya Dhanashree': {
     swar: { name: "Puriya Dhanashree's notes against the drone",
@@ -99,9 +100,6 @@ const PATH_LESSONS = {
       purpose: "The quick P M P turn on Pa (it opens Bhimsen Joshi's phrase in the Library) and the M G M r G turn that tells this raga from Shree and Puriya, practised on their own.",
       listen: "The murki light and quick, three notes in one beat, with Pa clearly the note it decorates.",
       mistakes: "A murki so heavy it becomes three separate notes; M G M r G flattened into M G r." },
-    alankar: { name: 'Puriya Dhanashree palta',
-      tokens: "N. r G r  r G M G  G M P M  M P d P  P d N d  d N S' N  S' N d P  N d P M  d P M G  P M G M  G M r G  r - S -",
-      purpose: "A four-note palta through the raga's notes that ends with its own descent, M G M r G r S." },
   },
   'Todi (Miyan ki)': {
     swar: { name: "Todi's notes against the drone",
@@ -118,9 +116,6 @@ const PATH_LESSONS = {
       purpose: "The same andolan as in the notes lesson, now longer and approached from the notes around it: r to g, M to d, and back.",
       listen: "The swing beginning only once you have arrived on the note, never before.",
       mistakes: "A fast, regular wobble (that is vibrato, not andolan); swinging upward past the note instead of below it." },
-    alankar: { name: 'Todi palta, no Pa',
-      tokens: "d. N. S r  S r g r  r g M g  g M d M  M d N d  d N S' N  S' N d M  N d M g  d M g r  M g r -  S - - -",
-      purpose: "A four-note palta through Todi's notes with Pa left out, as the Library's Todi taans do, ending M g r S." },
   },
   'Malkauns': {
     swar: { name: "Malkauns's notes against the drone",
@@ -137,9 +132,6 @@ const PATH_LESSONS = {
       purpose: "The slow slides that join Malkauns's notes, each a whole note long: Ma down to Ga, Ni down to Dha, Dha down to Ma, and Ga down to Sa.",
       listen: "The slide itself in tune all the way, arriving on the lower note without a bump.",
       mistakes: "Sliding late, so the note is held and then dropped; overshooting the lower note." },
-    alankar: { name: 'Malkauns palta',
-      tokens: "n. S g S  S g m g  g m d m  m d n d  d n S' n  S' n d m  n d m g  d m g S  g m g -  S - - -",
-      purpose: "A four-note palta through Malkauns's five notes, which with no Re or Pa climbs in wide steps, ending g m g S." },
   },
   'Darbari Kanada': {
     swar: { name: "Darbari's notes against the drone",
@@ -156,9 +148,6 @@ const PATH_LESSONS = {
       purpose: "The two turns that make Kanada: Dha in andolan turning through Ni to slide down to Pa, and Ga in andolan going up to Ma before it falls to Re.",
       listen: "The slide from Ni to Pa unhurried; Ma touched lightly before Re.",
       mistakes: "Going straight from Dha to Pa, or from Ga to Re: the turn is the raga." },
-    alankar: { name: 'Darbari taan cells',
-      tokens: "n. S R g  m R S -  R g m P  g m R S  m P d n  S' d n P  m P g m  R - S -",
-      purpose: "Four-note cells that each come down the Darbari way (g m R S, Ṡ d n P, m P g m) rather than straight.", },
   },
   'Multani': {
     swar: { name: "Multani's notes against the drone",
@@ -175,33 +164,24 @@ const PATH_LESSONS = {
       purpose: "Multani's Ga is tugged up from Ma (a kan of Ma before it), and Re is passed through with a touch of Sa on the way down, as in Parrikar's notation in the Library.",
       listen: "The kan quick, a flick of Ma at the start of Ga, not a separate note.",
       mistakes: "Turning the kan into M g as two notes; letting Re sit for even a moment." },
-    alankar: { name: 'Multani palta',
-      tokens: "N. S g S  S g M g  g M P M  M P N P  P N S' N  S' N d P  N d P M  d P M g  P M g r  M g r -  S - - -",
-      purpose: "A four-note palta that leaves Re and Dha out going up and uses them coming down, ending M g r S with Re only passed through." },
   },
 };
 
-// Bhimsen-inspired (Kirana style): one long aalap with sweeping meends and held nyas, and one fast
-// sapaat that turns once before landing on sam. Composed for this app, not transcribed.
+// Bhimsen-inspired (Kirana style): one long aalap with sweeping meends and held nyas. Composed for
+// this app, not transcribed.
 const PATH_BJ = {
   'Yaman': { aalapName: 'A sweep down from taar Re',
-    aalap: "N. R G - | - - - - | M D N - | S' - - - | - - - - | R' - ~~S' - | N - D - | ~~P - - - | M - ~~G - | - - - - | R - ~~S - | - - - -",
-    taan: "N.RGM DNS'R' G'R'S'N DPMG RGMD NS'ND PMGR S" },
+    aalap: "N. R G - | - - - - | M D N - | S' - - - | - - - - | R' - ~~S' - | N - D - | ~~P - - - | M - ~~G - | - - - - | R - ~~S - | - - - -" },
   'Puriya Dhanashree': { aalapName: 'Taar Re falling to Pa',
-    aalap: "N. r G - | M P - - | - - - - | d N S' - | r' - ~~N - | d - ~~P - | - - - - | M G M ~~r | G - - - | r - S - | - - - -",
-    taan: "N.rGM PdNS' r'G'r'S' NdPM GMrG MPdN S'NdP MGMr G-r- S" },
+    aalap: "N. r G - | M P - - | - - - - | d N S' - | r' - ~~N - | d - ~~P - | - - - - | M G M ~~r | G - - - | r - S - | - - - -" },
   'Todi (Miyan ki)': { aalapName: 'Komal Dha to taar Re and home',
-    aalap: "d. N. S r | ^g - - - | - - - - | r g M ^d | - - - - | N S' - - | r' - ~~S' - | N - ^d - | M - ~~g - | r g r S | - - - -",
-    taan: "N.Srg MdNS' r'g'r'S' NdMg rgMd NS'Nd Mgr- S" },
+    aalap: "d. N. S r | ^g - - - | - - - - | r g M ^d | - - - - | N S' - - | r' - ~~S' - | N - ^d - | M - ~~g - | r g r S | - - - -" },
   'Malkauns': { aalapName: 'Meend by meend from taar Ga',
-    aalap: "n. S g m | - - - - | d - ~~m - | n - ~~d - | S' - - - | g' - ~~S' - | n - ~~d - | m - ~~g - | ~~S - - - | - - - -",
-    taan: "n.Sgm dnS'g' m'g'S'n dmgm gmdn S'ndm gmg- S" },
+    aalap: "n. S g m | - - - - | d - ~~m - | n - ~~d - | S' - - - | g' - ~~S' - | n - ~~d - | m - ~~g - | ~~S - - - | - - - -" },
   'Darbari Kanada': { aalapName: 'Deep in the mandra',
-    aalap: 'S - n. - | P. - ^d. - | - n. ~~P. - | m. P. ^d. n. | S - - - | R ^g - - | - - m R | S - - - | - - - -',
-    taan: "n.SRg mRSn. SRgm PgmR mPdn S'dnP mPgm R S" },
+    aalap: 'S - n. - | P. - ^d. - | - n. ~~P. - | m. P. ^d. n. | S - - - | R ^g - - | - - m R | S - - - | - - - -' },
   'Multani': { aalapName: 'Pa to taar Sa and the long way down',
-    aalap: "N. S (M)g - | - - - - | M P - - | N S' - - | - - - - | N d ~~P - | M - (M)g - | - - - - | (S)r S - - | - - - -",
-    taan: "N.SgM PNS'g' r'S'Nd PMgM gMPN S'NdP Mgr- S" },
+    aalap: "N. S (M)g - | - - - - | M P - - | N S' - - | - - - - | N d ~~P - | M - (M)g - | - - - - | (S)r S - - | - - - -" },
 };
 
 // your turn: the same notation with every note outlined (shown and timed, not played)
@@ -211,11 +191,8 @@ function yourTurn(notes) {
 
 const PATH_KIND = {
   aalap: { stage: 'badhat', taal: 'Ektaal', minutes: 4 },
-  sapaat: { stage: 'taan', taal: 'Teentaal', minutes: 3 },
   vakra: { stage: 'taan', taal: 'Teentaal', minutes: 4 },
-  gamak: { stage: 'taan', taal: 'Teentaal', minutes: 3 },
   chhut: { stage: 'taan', taal: 'Teentaal', minutes: 3 },
-  tihai: { stage: 'taan', taal: 'Teentaal', minutes: 3 },
 };
 // the Library's levels 1-3 sit at Building to Advanced here
 const libLevel = p => Math.min(4, (p.level || 1) + 1);
@@ -242,19 +219,6 @@ function pathLessons(path) {
     harder: 'Slower, so each rest is longer; then make a phrase of your own that ends on the same note.',
     notes: () => L.nyas.notes });
 
-  // its own pakad and phrases (ragas.js), as call and answer
-  add({ id: `${path.id}-echo`, stage: 'chalan', level: 3, name: 'Its phrases: listen, then answer', minutes: 5, taal: 'Teentaal',
-    bpm: { start: 60, target: 76, step: 4 }, lays: [1],
-    purpose: `The pakad and characteristic phrases of ${path.name}, each played once and then left for you to sing back in the same time.`,
-    how: ['Listen to the phrase; in the gap after it, sing it back. Your turn is drawn outlined.'],
-    listen: 'Your answer starting on the same matra, one cycle later, with the held notes held.',
-    mistakes: pit, harder: 'Sing scoring on, aiming for 80% in tune; then the guide off.',
-    seq: c => [c.raga.pakad, ...(c.raga.phrases || [])].filter(Boolean).flatMap(p => {
-      const call = ragaSlots(p, c.raga, 1, false);
-      while (call.length % 8) call.push('_');
-      return X.echo(call);
-    }) });
-
   // the Library's aalaps, one by one, in badhat order
   const lib = typeof PHRASES !== 'undefined' ? PHRASES.filter(p => p.raga === r) : [];
   const aalaps = lib.filter(p => p.kind === 'aalap').sort((a, b) => (a.level || 1) - (b.level || 1));
@@ -267,18 +231,6 @@ function pathLessons(path) {
     listen: 'The slides even and in tune all the way down; the held notes still, with no wobble.',
     mistakes: pit, harder: 'Slower, down to 30 BPM; then sing it a step higher in the saptak, or extend it with a phrase of your own.',
     notes: () => bj.aalap });
-  if (aalaps.length > 1) {
-    const all = aalaps.map(p => `${p.notes} | _ | ${yourTurn(p.notes)} | _ _`).join(' | ');
-    add({ id: `${path.id}-badhat-echo`, stage: 'badhat', level: 4, name: 'The whole badhat, call and answer', minutes: 8, taal: 'Ektaal',
-      bpm: { start: 48, target: 36, step: -3 }, lays: [1],
-      purpose: `All ${aalaps.length} of the Library's ${path.name} aalaps in order, from the lowest to the taar saptak, each played and then left for you to sing back: the raga unfolded the way a vilambit aalap unfolds it.`,
-      how: ['Each aalap is played, then its notes come round again outlined: that is your turn.', 'Keep the akaar open and the held notes full length; the gaps are for breath.'],
-      listen: `Each nyas (${path.nyas}) as steady in your answer as in the call.`,
-      mistakes: pit, harder: 'Guide off for the whole badhat; then slower.',
-      sourced: aalaps.filter(p => p.src === 'notation').length, total: aalaps.length,
-      notes: () => all });
-  }
-
   if (L.orn) add({ id: `${path.id}-orn`, stage: 'orn', level: 3, name: L.orn.name, minutes: 4, taal: 'Teentaal',
     bpm: { start: 52, target: 40, step: -4 }, lays: [1], composed: true,
     purpose: L.orn.purpose,
@@ -287,31 +239,10 @@ function pathLessons(path) {
     harder: 'Slower, then the guide off; then use the ornament in an aalap of your own.',
     notes: () => L.orn.notes });
 
-  add({ id: `${path.id}-pakad-lay`, stage: 'laya', level: 4, name: 'Its pakad through the layakari', minutes: 5, taal: 'Teentaal',
-    bpm: { start: 56, target: 80, step: 4 }, lays: [1, 2, 3, 4], ladder: true, src: ['laya'],
-    purpose: `${path.name}'s pakad with its resting notes, in thah, dugun, tigun and chaugun one after another. At speed it must still be ${path.name}, not a scale run.`,
-    how: ['Ladder: each speed fills the same time, so the pakad comes once in thah, twice in dugun, three times in tigun and four in chaugun.'],
-    listen: 'The held notes still there, shorter, at chaugun.',
-    mistakes: pit, harder: 'Guide off; then the same with one of its other phrases.',
-    seq: c => ragaSlots(c.raga.pakad || c.raga.aaroh, c.raga, 1) });
-
-  if (L.alankar) add({ id: `${path.id}-palta`, stage: 'taan', level: 3, name: L.alankar.name, minutes: 4, taal: 'Teentaal',
-    bpm: { start: 60, target: 100, step: 4 }, lays: [2, 4], ladder: true, composed: true,
-    purpose: L.alankar.purpose,
-    how: ['Dugun first, then chaugun (or the ladder). Each cell of four is one matra in chaugun.'],
-    listen: 'The notes it leaves out still left out at speed; the ending phrase as clear as in a slow aalap.',
-    mistakes: pit, harder: 'Faster; guide off; then make up the next cell yourself.',
-    seq: () => L.alankar.tokens.split(/\s+/).filter(Boolean) });
-
-  if (bj) add({ id: `${path.id}-bj-taan`, stage: 'taan', level: 4, name: 'Bhimsen-inspired: a fast sapaat that turns', minutes: 4, taal: 'Teentaal',
-    bpm: { start: 72, target: 108, step: 4 }, lays: [1], lands: 'sam', composed: true, bhimsen: true,
-    purpose: `A fast ${path.name} taan in the manner of Bhimsen Joshi's drut taans: straight up to the taar saptak, a turn, a second climb, and down to Sa on sam, keeping the raga's skipped notes and its closing phrase.`,
-    how: ['Four notes a matra; start where the graph shows so the last Sa falls on sam.', 'Take a full breath before it: it is one line.'],
-    listen: 'All four notes of every matra there at speed, and the closing phrase as clear as in the aalap.',
-    mistakes: pit, harder: 'Faster, 4 BPM at a time toward 108; then the guide off.',
-    notes: () => bj.taan });
-  const order = ['sapaat', 'vakra', 'gamak', 'chhut', 'tihai'];
-  lib.filter(p => p.kind !== 'aalap').sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || (a.level || 1) - (b.level || 1))
+  // the Library's taans that are written as turns and leaps; its straight runs, gamak runs and
+  // repeat-three-times tihais are the same shape in every raga, so they are left out here
+  const order = ['vakra', 'chhut'];
+  lib.filter(p => order.includes(p.kind)).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || (a.level || 1) - (b.level || 1))
     .forEach(p => add(fromPhrase(path, p, pit)));
   return out;
 }

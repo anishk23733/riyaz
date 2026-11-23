@@ -569,21 +569,21 @@ function todayPlan() {
   // in a raga path, the next lesson not yet mastered, in the path's own order
   const addPath = (path, stages, why) => {
     const items = pathItems(path.id).filter(e => stages.includes(e.stage));
-    const at = items.filter(e => e.level <= Math.max(L, 2));
+    const at = items.filter(e => e.level <= Math.max(L, 2) && !plan.some(p => p.ex === e));
     const e = at.find(x => !Prog.mastered(x)) || at[day % Math.max(1, at.length)];
     if (e && !plan.some(p => p.ex === e)) plan.push({ ex: e, why });
   };
+  // the general work is the voice, the laya and the ear; everything melodic comes from a raga path
   add('swar', 'Warm up on Sa');
-  add('alankar', 'Alankar');
-  if (mins >= 30) add('alankar', 'Second alankar', plan.map(p => p.ex));
-  add('orn', 'Ornament');
   const path = todayPath();
   if (path) {
     addPath(path, ['swar', 'chalan', 'badhat', 'orn'], `Raga · ${path.name}`);
-    if (mins >= 30) addPath(path, ['laya', 'taan'], `Raga taan · ${path.name}`);
-  } else add('raga', 'Raga');
-  add(day % 2 ? 'taan' : 'laya', day % 2 ? 'Speed' : 'Laya');
-  if (mins >= 45) add(day % 2 ? 'laya' : 'taan', day % 2 ? 'Laya' : 'Speed');
+    if (pathItems(path.id).some(e => e.stage === 'phrase')) addPath(path, ['phrase'], `Phrasing · ${path.name}`);
+    if (mins >= 30) addPath(path, ['laya', 'taan'], `Taan and laya · ${path.name}`);
+    if (mins >= 45) addPath(path, ['badhat', 'taan', 'phrase'], `More ${path.name}`);
+  }
+  add('laya', 'Laya');
+  if (!path && mins >= 30) add('orn', 'Andolan');
   add('ear', 'Ear');
   // share the time out in proportion to each exercise's own length
   const total = plan.reduce((s, p) => s + p.ex.minutes, 0);
@@ -682,7 +682,7 @@ function renderPrDetail() {
       ${lays.length > 1 ? `<div class="legend">Speeds: thah is one note a matra, dugun two, tigun three, chaugun four. Ladder sings them one after another, each filling the same time. Raise the tempo only when the fastest speed is clean.</div>` : ''}
       ${libN ? `<div class="legend">${libN} aalaps and taans for ${esc(b.raga.name)} are in the Library (book icon).</div>` : ''}
       ${ex.src ? `<div class="legend">Follows: ${ex.src.map(cite).join('; ')}</div>` : ''}
-      ${ex.his ? `<details class="pr-about"><summary class="muted small">As written in your notes</summary><ol class="pr-his">${ex.his.map(h => `<li>${esc(h)}</li>`).join('')}</ol></details>` : ''}
+      ${ex.orig ? `<details class="pr-about"><summary class="muted small">As written in your notes</summary><ol class="pr-his">${ex.orig.map(h => `<li>${esc(h)}</li>`).join('')}</ol></details>` : ''}
       ${prProvenance(ex)}
       ${path ? prPathAbout(path) : ''}
       <details class="pr-notation"><summary class="muted small">Notation</summary><div class="lib-notation" id="prNotation"></div></details>

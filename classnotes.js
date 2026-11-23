@@ -2,9 +2,9 @@
 // Lessons from your own class notes, plus exercises composed
 // for this app in the same method. Loaded after ragapaths.js, before practice.js.
 //
-// His notation, kept verbatim in the data below, and how it is read here:
+// The notation of your class notes, kept verbatim in the data below, and how it is read here:
 //   S R G M P D N, komal in lowercase (r g d n). Ma is the other way round from the app:
-//   his M is shuddha Ma (app m), his m is tivra Ma (app M).
+//   the notes' M is shuddha Ma (app m), their m is tivra Ma (app M).
 //   N' (or N’) is mandra, S" (or S”) is taar.
 //   Outside brackets a note is one matra. [ ] and { } are double speed: half a matra each.
 //   ( ) in an aalap step: sing fast as one string, also double speed here.
@@ -15,7 +15,7 @@
 
 const CN_LETTERS = { S: 'S', r: 'r', R: 'R', g: 'g', G: 'G', M: 'm', m: 'M', P: 'P', d: 'd', D: 'D', n: 'n', N: 'N' };
 
-// His line -> units of time: { l: app letter, o: octave, glide, d: length in half-matras } | hold | rest
+// A line of the notes -> units of time: { l: app letter, o: octave, glide, d: length in half-matras } | hold | rest
 function cnUnits(src, opts = {}) {
   const aalap = !!opts.aalap, s = String(src).replace(/[​ ]/g, ' ');
   const out = [];
@@ -73,7 +73,7 @@ function cnMatras(slots) {
 }
 const cnNotes = (src, opts) => cnMatras(cnSlots(cnUnits(src, opts)));
 
-// The grid format (his Yaman Jhaptaal page): one cell a matra; the notes in a cell share it.
+// The grid format (the Yaman Jhaptaal page): one cell a matra; the notes in a cell share it.
 function cnCell(cell) {
   if (!cell || cell === '_') return '_';
   const u = cnUnits(cell);
@@ -93,7 +93,7 @@ function cnScore(units) {
 
 // A taan in its place: from `from` (the matra it starts on) to the next mukhda at `next`.
 // Fits if it ends no more than a matra short of the mukhda (the last note is then held into it).
-// If it doesn't, try his lines held out to 8 matras each (his "– 8 beats" marks).
+// If it doesn't, try the lines held out to 8 matras each (the notes' "– 8 beats" marks).
 function cnPlace(t, sec) {
   const M = sec.M, d0 = ((sec.next - sec.from) % M + M) % M || M;
   const lines = t.lines.map(l => cnUnits(l, { dashOne: t.dashOne }));
@@ -117,14 +117,14 @@ function cnPlace(t, sec) {
 const CN_UNPLACED = {}; // raga -> [{ where, text, why }]
 
 // ---------------------------------------------------------------- the class notes
-// Each raga: what the notes say about it, his aalap steps, paltas, bandish taans, and what this
-// app composed in the same method. `method` explains how his notes build the raga.
+// Each raga: what the notes say about it, their aalap steps, paltas, bandish taans, and what this
+// app composed in the same method. `method` explains how the notes build the raga.
 const CLASS_NOTES = {};
 
 CLASS_NOTES['Yaman'] = {
   path: 'p-yaman', file: 'Raaga Yaman - Characteristics, and two pages of Yaman taans',
   facts: 'Kalyan thaat. Tivra Ma, every other note shuddha. Aaroh N̤ R G M D N Ṡ, avaroh Ṡ N D P M G R S. Vadi Ga, samvadi Ni. Phrases it never uses: S R G and M P D N.',
-  chalan: { his: 'S, (N’)D’ N’ R G(nyasa), R S, G m D N(nyasa), S” N D N D P(nyasa), m (G)R G(nyasa), G m P->(mG)R(nyasa), G R S',
+  chalan: { orig: 'S, (N’)D’ N’ R G(nyasa), R S, G m D N(nyasa), S” N D N D P(nyasa), m (G)R G(nyasa), G m P->(mG)R(nyasa), G R S',
     notes: "S - _ (N.)D. N. R G - - - R S - _ G M D N - - - S' N D N D P - - - M (G)R G - - - G M P ~~R - - - G R S - - -" },
   pakads: [
     ['S, N’ D’ N’ R G R S', "S - N. D. N. R G R S - - -"],
@@ -151,9 +151,9 @@ CLASS_NOTES['Yaman'] = {
     'G…..G….R..N’D’N’R…..', 'R…m….G…R…N’D’N’..G…R', 'G….R…N’D’m’D’N’...G..R', 'R…P…..R….G…..R…..',
     'R…..G….R…..N’...D’....N’....R….S',
   ],
-  // his badhat, in the stretches it moves through
+  // the badhat, in the stretches it moves through
   aalapGroups: [
-    { from: 1, to: 8, name: 'Sa, and down into the mandra', why: "His first eight steps never go above Re. Step 1 is Sa alone; 2 to 5 go down and stay there (S N̤ Ḍ N̤, Ḍ N̤ N̤ S), turning Ḍ and N̤ over until they are as sure as Sa. Step 7 stops on N̤, the note that wants Sa most, and step 8 answers it, N̤ N̤ R S: the first small tension and release." },
+    { from: 1, to: 8, name: 'Sa, and down into the mandra', why: "Your first eight steps never go above Re. Step 1 is Sa alone; 2 to 5 go down and stay there (S N̤ Ḍ N̤, Ḍ N̤ N̤ S), turning Ḍ and N̤ over until they are as sure as Sa. Step 7 stops on N̤, the note that wants Sa most, and step 8 answers it, N̤ N̤ R S: the first small tension and release." },
     { from: 9, to: 12, name: 'Re and Ga open: Ga as the first nyas', why: "Ga, the vadi, is reached from below (N̤ R G) and then held and re-struck, G G R G, until it is a place to rest. Step 12, R G R S, brings it back home." },
     { from: 13, to: 20, name: 'Tivra Ma and Pa', why: "Tivra Ma comes in only as a step to Pa (G R G M P), never as a resting note. Pa is approached, left and approached again, and 15 and 16 jump from Pa straight to Re (P R G): the pakad's shape, opened up slowly." },
     { from: 21, to: 26, name: 'Dha and Ni: the upper tetrachord', why: "From 21 the voice climbs N̤ R G M D, holding Dha, then Ni, and each step falls back to Pa or Ga. Every step goes a little further before it is allowed to come down." },
@@ -191,7 +191,7 @@ CLASS_NOTES['Yaman'] = {
     { n: 24, rows: 'D’ D’N’ D’N’S' },
     { n: 25, rows: 'N’ N’S' },
   ],
-  // his Jhaptaal page: chandrama lalaaT par. One cell a matra, X to 10.
+  // the Jhaptaal page: chandrama lalaaT par. One cell a matra, X to 10.
   jhaptaal: {
     mukhda: { words: 'chandrama', cells: ['N’', 'R', 'G', 'm'] },
     antaraMukhda: { words: 'trishoola', cells: ['_', '_', '_', '_'] },
@@ -286,7 +286,7 @@ CLASS_NOTES['Bhinna Shadja'] = {
     { id: 'ayo', name: 'Ayo ree basant', taal: 'Teentaal', bpm: 140, taalNote: 'The notes say Addha Teentaal at 140; the app’s Teentaal theka stands in for it.',
       sections: [
         { id: 'ast', name: 'asthaayi', from: 5, next: 12, M: 16,
-          mukhda: { at: 12, his: 'GM [DN]S” DN-D', notes: "G m DN S' - D N - D", words: 'aayo ree basant',
+          mukhda: { at: 12, orig: 'GM [DN]S” DN-D', notes: "G m DN S' - D N - D", words: 'aayo ree basant',
             note: 'Your notation puts sam on "basant"; I held taar Sa through matra 16 so "ba" falls on sam.' },
           taans: [
             ['p1-1', 'Part 1, taan 1', ['[D’N’SGM] [GMDN S”NDM]']],
@@ -310,7 +310,7 @@ CLASS_NOTES['Bhinna Shadja'] = {
             ['k-10', 'Kaushidhwani page, taan 10', ['[DDNN] [DDMM] [GGMM] G']],
           ] },
         { id: 'bridge', name: 'bridge to the antara', from: 5, next: 12, M: 16, bridge: true,
-          mukhda: { at: 12, his: 'GM [DN]S” DN-D', notes: "G m DN S' - D N - D", words: 'aayo ree basant' },
+          mukhda: { at: 12, orig: 'GM [DN]S” DN-D', notes: "G m DN S' - D N - D", words: 'aayo ree basant' },
           land: { at: 12, notes: "D G m D N S' - S' -", words: 'pavan madhu mand' },
           taans: [
             ['bridge', 'Bridge taan (performance format)', ['[M- M- MM] [ MM- M- MM] [DM DM GS GS] [D’N’ SGM-MM]', '[D-D- DD] [DD- D- DD] [ND ND MG MG] [N’S GM D-DD]',
@@ -318,7 +318,7 @@ CLASS_NOTES['Bhinna Shadja'] = {
             ['k-bridge', 'Bridge taan (Kaushidhwani page)', ['[SMGM] [GDMD] [MNDN] [DS”NS”]', '[S”NDN] [NDMD] [DMGM] [MGSG]', '[SGMD] [NS”ND] [GMDN] S”']],
           ] },
         { id: 'ant', name: 'antara', from: 5, next: 12, M: 16,
-          mukhda: { at: 12, his: 'DGM DN S”-S”-', notes: "D G m D N S' - S' -", words: 'pavan madhu mand' },
+          mukhda: { at: 12, orig: 'DGM DN S”-S”-', notes: "D G m D N S' - S' -", words: 'pavan madhu mand' },
           taans: [
             ['p1-1', 'Part 1, taan 1', ['[DN S”G” S”N S”-] [GM DN S”]']],
             ['p1-2', 'Part 1, taan 2', ['[S”G” M”G” S”N] [GM DN DMD]']],
@@ -345,7 +345,7 @@ CLASS_NOTES['Bhinna Shadja'] = {
     { id: 'ajahu', name: 'Ajahu na aaye', taal: 'Teentaal', bpm: 160,
       sections: [
         { id: 'ast', name: 'asthaayi', from: 5, next: 12, M: 16,
-          mukhda: { at: 12, his: 'S”ND M GS', notes: "S' N D m G S - - -", words: 'ajahu na aaye',
+          mukhda: { at: 12, orig: 'S”ND M GS', notes: "S' N D m G S - - -", words: 'ajahu na aaye',
             note: 'Your notation gives "ajahu na aaye" six notes from matra 12; I held the last Sa to matra 4, where the taans start.' },
           taans: [
             ['p1-1', 'Part 1, taan 1', ['[N’SG-][SGM-][GMDNS”]']],
@@ -359,13 +359,13 @@ CLASS_NOTES['Bhinna Shadja'] = {
             ['p3-3', 'Part 3, taan 3', ['[SGMG SN’D’N’] [GMDM GSN’S] [MDND MGSG] [GMDN S”- ]', '[S”NDN S”G”M”G”] [NDMD NS”G”S”] [DMGM DNS”N] [SGMD N-]', '[S”N D-] [ND M-] [DM GM D-]']],
           ] },
         { id: 'bridge', name: 'bridge to the antara', from: 5, next: 10, M: 16, bridge: true,
-          mukhda: { at: 12, his: 'S”ND M GS', notes: "S' N D m G S - - -", words: 'ajahu na aaye' },
+          mukhda: { at: 12, orig: 'S”ND M GS', notes: "S' N D m G S - - -", words: 'ajahu na aaye' },
           land: { at: 10, notes: "G m D N S' S' S'", words: 'aavan ke gayo' },
           taans: [
             ['bridge', 'Bridge taan', ['[SG M- GMDM] [GM D- MDND] [MD N- DNS”N] [DN S”- NS”NS”]', '[S”N” D- ND M-] [DM G- MG S-] [S”ND NDM DMG MGS GS N’S]', '[D’N’SG MDNS”]']],
           ] },
         { id: 'ant', name: 'antara', from: 1, next: 10, M: 16,
-          mukhda: { at: 10, his: 'GMDN S” S”S”', notes: "G m D N S' S' S'", words: 'aavan ke gayo' },
+          mukhda: { at: 10, orig: 'GMDN S” S”S”', notes: "G m D N S' S' S'", words: 'aavan ke gayo' },
           taans: [
             ['p1-1', 'Part 1, taan 1', ['[S”NDN][S”-S”S”][GMDNS”-S”S”]']],
             ['p1-2', 'Part 1, taan 2', ['[S”G”M”G”][S”NS”-][DNS”NS”--]']],
@@ -392,7 +392,7 @@ CLASS_NOTES['Bhinna Shadja'] = {
 CLASS_NOTES['Patdeep'] = {
   path: 'p-patdeep', file: 'Raaga Patdeep - Characteristics',
   facts: 'Kafi thaat. Komal Ga, shuddha Ni. Tanpura on Pa. Aaroh N̤ S g M P N Ṡ, avaroh Ṡ N D P M g R S. Rests on Pa; in Ṡ N D P the Dha is sustained, and from Ni the voice glides down to it.',
-  chalan: { his: 'N\' S g M P (M) g, M g R S, g M P N S" D P, M P g, M g R S',
+  chalan: { orig: 'N\' S g M P (M) g, M g R S, g M P N S" D P, M P g, M g R S',
     notes: "N. S g m P - (m)g - m g R S - _ g m P N S' - D P - _ m P g - m g R S - -" },
   nuances: [
     ['P N R” N D M P', "P N R' N D - m P - - -"],
@@ -453,9 +453,9 @@ CLASS_NOTES['Bageshree'] = {
   ],
 };
 
-// ---------------------------------------------------------------- composed in the method of his notes
-// These are not from his notes. Each one takes a pattern his notes use and applies it somewhere
-// they don't; `why` says which pattern, with his example.
+// ---------------------------------------------------------------- composed in the method of your notes
+// These are not from your notes. Each one takes a pattern your notes use and applies it somewhere
+// they don't; `why` says which pattern, with your example.
 const CN_METHOD = {
   'Yaman': {
     method: [
@@ -535,29 +535,19 @@ const CN_METHOD = {
   },
 };
 
-// The other Library ragas: the same structure (numbered badhat steps, a build-up palta, taans
-// to and from a mukhda), Bhimsen-inspired, composed for this app.
+// The other Library ragas: an aalap in numbered steps, built the way your notes build theirs,
+// Bhimsen-inspired, composed for this app.
 const CN_OTHERS = {
   'Puriya Dhanashree': {
-    steps: ["S - - - N. - r - - - S - - -", "N. r G - - - r - S - - -", "N. r G M - G - r G - - -", "M P - - - M G M r G - - -", "G M d - - P - - - M G M r G -", "M d N - d P - - M G M r G - -", "P d N S' - - - - N d P - - -", "N r' - S' - N d P - M G M r G - r S"],
-    palta: "N.rG rGM GMP MPd PdN dNS' S'Nd NdP dPM PMG MGr GrS", mukhda: { notes: "M G M r G - r S - _", words: 'a composed mukhda' },
-    taans: ["N.rGM PdNS' r'S'Nd P-", "MPdN S'r'S'N dPMG MrG-", "PdNS' NdPM GMrG r-S-"] },
+    steps: ["S - - - N. - r - - - S - - -", "N. r G - - - r - S - - -", "N. r G M - G - r G - - -", "M P - - - M G M r G - - -", "G M d - - P - - - M G M r G -", "M d N - d P - - M G M r G - -", "P d N S' - - - - N d P - - -", "N r' - S' - N d P - M G M r G - r S"], },
   'Todi (Miyan ki)': {
-    steps: ["S - - - r - - - S - - -", "d. N. S r ^g - - - r - S - - -", "r g M ^d - - - M ^g - r - S - - -", "M ^d - - N - - - ^d - M - ^g - - -", "M d N S' - - - - N ^d - - - - - -", "r' g' r' S' - - N ^d - M ^g - r g r S -"],
-    palta: "d.N.Sr N.Srg SrgM rgMd gMdN MdNS' S'NdM NdMg dMgr Mgr- S", mukhda: { notes: "r g r S - - - - - _", words: 'a composed mukhda' },
-    taans: ["Srgr gMdM dNS'N dMg-", "N.Srg MdNS' r'S'Nd Mgr-", "gMdN S'r'g'r' S'NdM gr-S"] },
+    steps: ["S - - - r - - - S - - -", "d. N. S r ^g - - - r - S - - -", "r g M ^d - - - M ^g - r - S - - -", "M ^d - - N - - - ^d - M - ^g - - -", "M d N S' - - - - N ^d - - - - - -", "r' g' r' S' - - N ^d - M ^g - r g r S -"], },
   'Malkauns': {
-    steps: ["S - - - n. - ~~d. - - - S - - -", "n. S g - - - m - ~~g - S - - -", "g m d - - - ~~m - - - g m ~~g -", "m d n - - - ~~d - m - - - - - -", "d n S' - - - - - n ~~d - ~~m - - -", "S' g' m' - ~~g' - S' - n ~~d - m - g S -"],
-    palta: "n.Sg Sgm gmd mdn dnS' nS'g' S'nd ndm dmg mgS gS-- S", mukhda: { notes: "m g m d - m g S - _", words: 'a composed mukhda' },
-    taans: ["Sgmd nS'nd mgS-", "gmdn S'g'S'n dmgm g-S-", "dnS'g' m'g'S'n dmgS -"] },
+    steps: ["S - - - n. - ~~d. - - - S - - -", "n. S g - - - m - ~~g - S - - -", "g m d - - - ~~m - - - g m ~~g -", "m d n - - - ~~d - m - - - - - -", "d n S' - - - - - n ~~d - ~~m - - -", "S' g' m' - ~~g' - S' - n ~~d - m - g S -"], },
   'Darbari Kanada': {
-    steps: ["S - - - n. - - - S - - -", "S n. P. - - - m. P. ^d. - n. - S - - -", "S R ^g - - - m R - S - - -", "R ^g m P - - - - ^d n P - - -", "m P ^d n S' - - - ^d n P - m P ^g m R S"],
-    palta: "n.SRg SRgm Rgm P gmPd mPdn Pdn S' S'dnP dnPm nPmg Pgm R gmRS", mukhda: { notes: "m P ^g m R - S - - _", words: 'a composed mukhda' },
-    taans: ["n.SRg mRS- n.SRg mPgm R-S-", "RgmP dnS'n dnPm gmRS", "mPdn S'R'S'd nPmP gmR-"] },
+    steps: ["S - - - n. - - - S - - -", "S n. P. - - - m. P. ^d. - n. - S - - -", "S R ^g - - - m R - S - - -", "R ^g m P - - - - ^d n P - - -", "m P ^d n S' - - - ^d n P - m P ^g m R S"], },
   'Multani': {
-    steps: ["S - - - N. - - - S - - -", "N. S (M)g - - - M g (S)r S - - -", "N. S g M P - - - M (M)g - - -", "M P N - - - S' - N d P - - -", "N S' g' - - - r' S' N d P - M (M)g - (S)r S"],
-    palta: "N.Sg SgM gMP MPN PNS' NS'g' S'Nd NdP dPM PMg Mgr gr-S", mukhda: { notes: "M P (M)g - - (S)r S - _", words: 'a composed mukhda' },
-    taans: ["N.SgM PNS'N dPMg rS--", "gMPN S'g'r'S' NdPM g-r-", "MPNS' NdPM gMgr S-"] },
+    steps: ["S - - - N. - - - S - - -", "N. S (M)g - - - M g (S)r S - - -", "N. S g M P - - - M (M)g - - -", "M P N - - - S' - N d P - - -", "N S' g' - - - r' S' N d P - M (M)g - (S)r S"], },
 };
 
 // ---------------------------------------------------------------- building the lessons
@@ -585,7 +575,7 @@ function cnAalapLesson(path, cn, g, opts = {}) {
     listen: `Each step’s last note settled and in tune before the next step starts. In ${path.name} the resting notes are ${path.nyas}.`,
     mistakes: `Rushing the held notes; adding a note the step doesn’t have yet. ${path.pitfalls ? 'In ' + path.name + ': ' + path.pitfalls + '.' : ''}`,
     harder: 'Guide off; then slower, so every held note is longer; then sing the steps without the gaps, as one aalap.',
-    his: steps.map((s, k) => `${g.from + k}. ${s}`),
+    orig: steps.map((s, k) => `${g.from + k}. ${s}`),
     notes: () => toks.join(' '),
   };
 }
@@ -638,7 +628,7 @@ function cnBuild(raga, cn) {
     how: ['Play it once, then sing it back in the outlined half.', 'Kans in brackets are a flick of the note, not a note of their own.'],
     listen: `The marked nyas notes held still: ${path.nyas}.`, mistakes: pit ? `In ${path.name}: ${pit}.` : 'Rushing the held notes.',
     harder: 'Guide off; then make one phrase of your own that ends on each nyas.',
-    his: [cn.chalan.his], notes: () => cnEcho(cn.chalan.notes.split(/\s+/), 4).join(' ') });
+    orig: [cn.chalan.orig], notes: () => cnEcho(cn.chalan.notes.split(/\s+/), 4).join(' ') });
   if (cn.pakads) add({ id: `${path.id}-cn-pakads`, stage: 'chalan', level: 2, cn: 'notes', name: `Your ${cn.pakads.length} pakads, call and answer`, minutes: 5, taal: 'Teentaal',
     bpm: { start: 64, target: 80, step: 4 }, lays: [1],
     purpose: `All ${cn.pakads.length} pakads from your ${path.name} notes, each played and then left for you.`,
@@ -646,7 +636,7 @@ function cnBuild(raga, cn) {
     how: ['Each pakad is played, then outlined for you. The meend marked -> in your notes is drawn as a slide.'],
     listen: 'The pakad as one gesture, not a row of notes.', mistakes: pit ? `In ${path.name}: ${pit}.` : '',
     harder: 'Guide off; then string two pakads together into one phrase.',
-    his: cn.pakads.map((p, k) => `${k + 1}) ${p[0]}`),
+    orig: cn.pakads.map((p, k) => `${k + 1}) ${p[0]}`),
     notes: () => cn.pakads.flatMap(p => cnEcho(p[1].split(/\s+/), 4)).join(' ') });
   if (cn.nuances) add({ id: `${path.id}-cn-nuance`, stage: 'orn', level: 3, cn: 'notes', name: 'Your nuances: P N Ṙ N D M P, and the held Dha', minutes: 4, taal: 'Teentaal',
     bpm: { start: 56, target: 44, step: -4 }, lays: [1],
@@ -654,7 +644,7 @@ function cnBuild(raga, cn) {
     why: 'Patdeep, Bhimpalasi and Madhuvanti share most of their notes. Your notes tell them apart by where they rest: Patdeep on Pa, with Dha sustained in Ṡ N D P and reached by a glide from Ni; Bhimpalasi on Ma.',
     how: ['Hold the Dha its full length before Pa.'], listen: 'Dha steady, then Pa as the place of rest.', mistakes: 'Resting on Ma, which turns it into Bhimpalasi.',
     harder: 'Guide off; then build a phrase of your own that ends P, with Dha held before it.',
-    his: cn.nuances.map(n => n[0]), notes: () => cn.nuances.flatMap(n => cnEcho(n[1].split(/\s+/), 4)).join(' ') });
+    orig: cn.nuances.map(n => n[0]), notes: () => cn.nuances.flatMap(n => cnEcho(n[1].split(/\s+/), 4)).join(' ') });
 
   // aalap steps
   (cn.aalapGroups || []).forEach(g => add(cnAalapLesson(path, cn, g)));
@@ -669,7 +659,7 @@ function cnBuild(raga, cn) {
       how: ['Brackets () are sung fast as one string (double speed here); ~ is a meend into the next note.', 'Your notes mark some phrases to sing softly; that isn’t shown here.'],
       listen: 'Each meend landing exactly on its note; Ma steady as the centre.', mistakes: `In ${path.name}: ${pit}.`,
       harder: 'Guide off; then sing the steps one after another, as on stage.',
-      his: part.steps.map(s => `${s[0]}. ${s[1]}`), notes: () => toks.join(' ') });
+      orig: part.steps.map(s => `${s[0]}. ${s[1]}`), notes: () => toks.join(' ') });
   });
 
   // exercises 1-4 (Yaman): the scale doubled, tripled, quadrupled
@@ -677,7 +667,7 @@ function cnBuild(raga, cn) {
     const toks = cn.exercises.flatMap((e, k) => {
       const per = k + 1, line = e[0].replace(/^\d+\)\s*/, '');
       const u = cnUnits(line.replace(/\//, ' ')).filter(x => x.l);
-      // thah: two matras per note (his "S”-"); doubled etc.: the notes fill the matra
+      // thah: two matras per note (the notes' "S”-"); doubled etc.: the notes fill the matra
       const grp = [];
       for (let i = 0; i < u.length; i += per) grp.push(u.slice(i, i + per).map(cnTok).join(''));
       return cnPadTo(grp, 4);
@@ -688,7 +678,7 @@ function cnBuild(raga, cn) {
       why: 'The same scale four times over, only faster inside each matra: the layakari ladder done on a scale before it is done on a taan. Pa stays out going up (N R G M D N Ṡ) at every speed.',
       how: ['One matra a group: S, then SS, then SSS, then SSSS.', 'Keep the repeated notes separate, from the breath, not the throat.'],
       listen: 'Repeated notes equal in length and pitch; Pa left out going up even at four a matra.', mistakes: 'Rushing the four-note groups; sliding the repeated notes together.',
-      harder: 'Faster, 4 BPM at a time; then the guide off.', his: cn.exercises.map(e => e[0]), notes: () => toks.join(' ') });
+      harder: 'Faster, 4 BPM at a time; then the guide off.', orig: cn.exercises.map(e => e[0]), notes: () => toks.join(' ') });
   }
   if (cn.merukhand) {
     const chunks = [[5, 12, 'Exercises 5 to 12: runs growing up from each note', 3], [13, 20, 'Exercises 13 to 20: runs growing down from each note', 3], [21, 25, 'Exercises 21 to 25: the mandra', 2]];
@@ -709,22 +699,22 @@ function cnBuild(raga, cn) {
         how: ['Two notes a matra; the last note of each run is held a matra before the next starts.'],
         listen: 'The new note at the end of each run in tune, and Pa where it belongs.', mistakes: 'Adding Pa going up; losing the start note as the runs get longer.',
         harder: 'Chaugun (four a matra, at half the tempo); then the guide off.',
-        his: rows.map(r => `${r.n}) ${r.rows}`), notes: () => toks.join(' ') });
+        orig: rows.map(r => `${r.n}) ${r.rows}`), notes: () => toks.join(' ') });
     }
   }
   if (cn.palta) {
-    let toks, his;
+    let toks, orig;
     if (typeof cn.palta === 'string') {
       // "S SG SGM, G GM GMD ..." : each group a matra (dugun inside), two lines
-      his = [cn.palta];
+      orig = [cn.palta];
       toks = cn.palta.split(/[,/]|\s+/).filter(Boolean).map(g => cnUnits(g).filter(x => x.l).map(cnTok).join(''));
     } else if (Array.isArray(cn.palta[0])) {
       // Patdeep: three columns of four-note cells, read down each column, then the closing aaroh/avaroh
-      his = cn.palta.map(r => r.join('   ')).concat(cn.paltaEnd);
+      orig = cn.palta.map(r => r.join('   ')).concat(cn.paltaEnd);
       const cols = [0, 1, 2].map(c => cn.palta.map(r => r[c]));
       toks = cols.flat().concat(cn.paltaEnd).map(g => cnUnits(g.replace(/G”/g, 'g”')).filter(x => x.l).map(cnTok).join(''));
     } else {
-      his = cn.palta;
+      orig = cn.palta;
       toks = cn.palta.flatMap(l => l.split(/\s+/)).map(g => cnUnits(g).filter(x => x.l).map(cnTok).join(''));
     }
     add({ id: `${path.id}-cn-palta`, stage: 'taan', level: 3, cn: 'notes', name: 'Your palta', minutes: 4, taal: 'Teentaal',
@@ -735,7 +725,7 @@ function cnBuild(raga, cn) {
         : "A four-note climb and a two-note step back, each line starting one place lower: the raga's own movement, made into a sequence.",
       how: ['One group a matra; the groups get longer, so they get faster inside the matra.'], listen: 'Every group starting exactly on the matra.',
       mistakes: `Notes the raga doesn’t have creeping in at speed. In ${path.name}: ${pit}.`, harder: 'Faster; then the guide off; then start it from another note.',
-      his, notes: () => cnPadTo(toks, 4).join(' ') });
+      orig, notes: () => cnPadTo(toks, 4).join(' ') });
   }
 
   // Yaman's Jhaptaal page
@@ -778,14 +768,14 @@ function cnBuild(raga, cn) {
         how: ['Each cell of your page is one matra; the notes in a cell share it equally.', gi < 3 ? '"chandrama" on matras 1 to 4 is N̤ R G M, as in your taan 1.' : 'The antara’s mukhda, "trishoola" on 1 to 4, has no notes on your page: those matras are left for you to sing the words.', 'Your homework: sargam first, then aakaar.'],
         listen: 'Every cell exactly one matra, however many notes it has, and the mukhda on sam.', mistakes: `Rushing the four-note cells; in Yaman: ${pit}.`,
         harder: 'Toward 100 BPM; then the guide off.',
-        his: rows.map((r, k) => `${n0 + k}) ${r.join(' / ')}`), flags: gi >= 3 ? J.unclear : null,
+        orig: rows.map((r, k) => `${n0 + k}) ${r.join(' / ')}`), flags: gi >= 3 ? J.unclear : null,
         notes: () => toks.join(' ') });
     });
   }
   // Yaman: eight-matra taans with lead-ins (no taal on the page)
   if (cn.eights) {
     const E = cn.eights;
-    const toks = [], words = [], his = [];
+    const toks = [], words = [], orig = [];
     E.taans.forEach(([li, line], k) => {
       const u = cnUnits(line); const h = cnHalves(u);
       if (h !== 16) CN_UNPLACED[raga].push({ where: `Yaman taans page, taan ${k + 1}`, text: line, why: `comes to ${h / 2} matras where the others are 8`, kept: true });
@@ -793,7 +783,7 @@ function cnBuild(raga, cn) {
       words.push({ b: toks.length, t: E.lead[li][0] });
       const call = cnMatras(cnSlots(pad));
       toks.push(...call, ...yourTurn(call.join(' ')).split(' '));
-      his.push(`${k + 1}) ${E.lead[li][0]} … ${line} … ${E.lead[li][1]}`);
+      orig.push(`${k + 1}) ${E.lead[li][0]} … ${line} … ${E.lead[li][1]}`);
     });
     add({ id: `${path.id}-cn-eights`, stage: 'taan', level: 3, cn: 'notes', name: 'Eight-matra taans: "mohe gagari" and "baar baar"', minutes: 5, taal: 'Teentaal',
       bpm: { start: 60, target: 96, step: 4 }, lays: [1], words,
@@ -801,7 +791,7 @@ function cnBuild(raga, cn) {
       why: "Two four-note halves that answer each other (N̤ R G R, N̤ G R G; m G m P, m G R G): a question that climbs and an answer that turns back. 11 to 15 move up the raga (P m G m, then N̤ R G M G M D N, then Ṡ N D P M D N Ṡ) and 15 is the same note four times on G, M, D, N: tension by repetition.",
       how: ['One note a matra, brackets at double speed.', 'Your page gives no taal or placement, so each taan starts on sam here and the next eight matras are yours.'],
       listen: 'The two halves equal; the bracketed notes exactly twice as fast.', mistakes: `In Yaman: ${pit}.`,
-      harder: 'Dugun (half the tempo, two notes a matra in your head); then the guide off.', his,
+      harder: 'Dugun (half the tempo, two notes a matra in your head); then the guide off.', orig,
       flags: ['Your page gives no taal and its right edge is cut off, so the line after each taan is incomplete. Taan 7 ([D̤N̤S], [D̤N̤S], [GRS], [GRS]) comes to 6 matras by the bracket rule; the last 2 are held.'],
       notes: () => toks.join(' ') });
   }
@@ -847,7 +837,7 @@ function cnBuild(raga, cn) {
             ? "The bridge leaves the asthaayi and lands on the antara's first words. It works by pressure: the same note repeated off the beat (M - M - M M), on Ma, then Dha, then Ni, each followed by a release down the scale, and finally a climb that converges on taar Sa, so the antara arrives as a release."
             : gi === 0 ? 'The shortest and steadiest of the set: one or two brackets, few changes of direction, mostly within an octave. They teach the placement: from the matra after the mukhda to the mukhda’s return.'
             : 'Denser, with more turns and wider range, and some running over more than one cycle, so the mukhda is held back longer and lands harder.',
-          his: list.map(t => `${t.label}: ${t.lines.join(' / ')}`), flags: notes.length ? notes : null,
+          orig: list.map(t => `${t.label}: ${t.lines.join(' / ')}`), flags: notes.length ? notes : null,
         }));
       }
     }
@@ -855,7 +845,7 @@ function cnBuild(raga, cn) {
   return out;
 }
 
-// composed in his method, for the four ragas with class notes
+// composed in your notes' method, for the four ragas with class notes
 function cnMethodLessons(raga, m) {
   const cn = CLASS_NOTES[raga], path = PATHS.find(p => p.id === cn.path);
   const out = [], add = o => out.push(Object.assign({ track: path.id, raga: path.raga, check: true, cn: 'method', composed: true }, o));
@@ -882,7 +872,7 @@ function cnMethodLessons(raga, m) {
       if (!tt.place.ok) { console.warn('composed taan does not fit', raga, t.name, tt.place); return; }
       add(cnTaanLesson(path, b, sec, [{ label: t.name, place: tt.place }], '', Object.assign(base, { composed: true, cn: 'method',
         purpose: `Composed for this app, placed in "${b.name}" like your own taans: mukhda, taan from matra ${sec.from}, mukhda.`,
-        his: null })));
+        orig: null })));
     } else {
       add(Object.assign(base, { taal: 'Teentaal', bpm: { start: 64, target: 100, step: 4 }, lays: [1], lands: 'sam',
         purpose: 'Composed for this app in your notes’ method; placed so the last note falls on sam.',
@@ -892,7 +882,7 @@ function cnMethodLessons(raga, m) {
   return out;
 }
 
-// the other ragas: numbered badhat steps, a build-up palta, and taans to a mukhda (composed)
+// the other ragas: numbered badhat steps (composed in the structure of your notes)
 function cnOtherLessons(raga, o) {
   const path = PATHS.find(p => p.raga === raga);
   if (!path) return [];
@@ -905,52 +895,23 @@ function cnOtherLessons(raga, o) {
     listen: 'Each step adding exactly one thing to the one before.', mistakes: `In ${path.name}: ${path.pitfalls}.`,
     harder: 'Guide off; then write the next step yourself.',
     notes: () => o.steps.flatMap(s => cnEcho(s.split(/\s+/), 4)).join(' ') });
-  add({ id: `${path.id}-cm-palta`, stage: 'taan', level: 3, name: 'Build-up palta in the raga', minutes: 4, taal: 'Teentaal',
-    bpm: { start: 60, target: 100, step: 4 }, lays: [1],
-    purpose: `A palta of overlapping three-note cells up ${path.name} and down again, one cell a matra (tigun).`,
-    why: "Your Bhinna Shadja palta (S S G S G M, G G M G M D...) climbs in cells that overlap. This one does the same in this raga, keeping its skipped notes and its own way down.",
-    how: ['Three notes a matra; the cells overlap, so each starts on the second note of the last.'], listen: 'The raga’s own turns still audible at speed.',
-    mistakes: `In ${path.name}: ${path.pitfalls}.`, harder: 'Faster; then the guide off.',
-    notes: () => cnPadTo(o.palta.split(/\s+/), 4).join(' ') });
-  // taans from the mukhda: mukhda on 13 to sam, taan from 2 (or 5), back to the mukhda on 13
-  const mk = o.mukhda.notes.split(/\s+/);
-  const toks = [], words = [];
-  o.taans.forEach(t => {
-    words.push({ b: toks.length, t: 'mukhda' });
-    toks.push(...mk);
-    const cells = t.split(/\s+/);
-    toks.push(...cells);
-    while ((toks.length) % 16) toks.push('-');
-  });
-  words.push({ b: toks.length, t: 'mukhda' }); toks.push(...mk);
-  add({ id: `${path.id}-cm-mukhda`, stage: 'taan', level: 4, name: 'Taans between a mukhda', minutes: 5, taal: 'Teentaal',
-    bpm: { start: 64, target: 100, step: 4 }, lays: [1], startAt: 13, words,
-    purpose: `Three ${path.name} taans, each between a short composed mukhda that starts on matra 13 and lands on sam, the way your bandish taans sit between "aayo ree basant".`,
-    why: "As in your bandish pages: the taan leaves after the mukhda lands, climbs (tension), and comes down to the mukhda's start; the mukhda's arrival on sam is the release. The three taans grow from one octave to a turn at the top.",
-    how: ['The mukhda is composed for this app (there is no bandish for this raga in your notes): sing it in sargam or aakaar.', 'Taans are four notes a matra.'],
-    listen: 'The mukhda landing on sam after every taan.', mistakes: `In ${path.name}: ${path.pitfalls}.`,
-    harder: 'Faster; then the guide off; then put the taans into a bandish you know.',
-    notes: () => toks.join(' ') });
   return out;
 }
 
-// new paths for the ragas his notes add
+// new paths for the ragas the class notes add
 const CN_PATHS = [
   { id: 'p-bhinna', raga: 'Bhinna Shadja', name: 'Bhinna Shadja',
     character: "Also called Kaushidhwani. Five notes, S G M D N, all shuddha: no Re and no Pa. Ma is the centre; phrases are joined by meends and fold back to Ma or Sa.",
     nyas: 'Ma, Sa and taar Sa', pitfalls: "a Pa or Re slipping into the wide steps; Dha or Ni flat; resting on Ga instead of moving through it to Ma or Sa",
-    neighbours: "Malkauns has the same shape with komal Ga, Dha and Ni; Bhinna Shadja is its all-shuddha cousin.", fromNotes: true,
-    swar: "S - - - - - - - G - - - - - - - m - - - - - - - D - - - - - - - N - - - - - - - S' - - - - - - - N - - - D - - - m - - - - - - - G - - - S - - - - - - -" },
+    neighbours: "Malkauns has the same shape with komal Ga, Dha and Ni; Bhinna Shadja is its all-shuddha cousin.", fromNotes: true },
   { id: 'p-patdeep', raga: 'Patdeep', name: 'Patdeep',
     character: "Kafi thaat with shuddha Ni, afternoon: komal Ga, shuddha Ni. Up N̤ S g M P N Ṡ, with Re and Dha left out; down with them. Pa is the resting note.",
     nyas: 'Pa, Sa and komal Ga', pitfalls: "resting on Ma (that is Bhimpalasi); using Re or Dha going up; Dha passed quickly in Ṡ N D P instead of sustained",
-    neighbours: "Bhimpalasi has komal Ni and rests on Ma; Madhuvanti has tivra Ma.", fromNotes: true,
-    swar: "N. - - - S - - - g - - - m - - - P - - - - - - - N - - - S' - - - - - - - N - - - ~D - - - - - - - P - - - m - - - g - - - R - - - S - - - - - - -" },
+    neighbours: "Bhimpalasi has komal Ni and rests on Ma; Madhuvanti has tivra Ma.", fromNotes: true },
   { id: 'p-bageshree', raga: 'Bageshree', name: 'Bageshri',
     character: "Kafi thaat, night: komal Ga and Ni. Ma is the centre; the voice jumps from Sa to Ma through komal Ga, and Pa is only touched on the way down.",
     nyas: 'Ma, Sa and Dha', pitfalls: "resting on Pa; climbing through Re and Pa as in Kafi; letting Ma go weak",
-    neighbours: "Rageshree has shuddha Ga; Bhimpalasi uses Pa freely and rests on Ma and Pa.", fromNotes: true,
-    swar: "D. - - - n. - - - S - - - g - - - m - - - - - - - D - - - n - - - S' - - - - - - - n - - - D - - - m - - - - - - - g - - - R - - - S - - - - - - -" },
+    neighbours: "Rageshree has shuddha Ga; Bhimpalasi uses Pa freely and rests on Ma and Pa.", fromNotes: true },
 ];
 
 (function () {
@@ -958,13 +919,6 @@ const CN_PATHS = [
   for (const p of CN_PATHS) if (!PATHS.some(x => x.id === p.id) && (typeof ALL_RAGAS === 'undefined' || ALL_RAGAS.get(p.raga))) {
     PATHS.push(p);
     EXERCISES.push(...pathLessons(p));
-    EXERCISES.push({ id: `${p.id}-swar`, track: p.id, raga: p.raga, check: true, composed: true, cn: 'others', stage: 'swar', level: 2,
-      name: `${p.name}'s notes against the drone`, minutes: 4, taal: 'Teentaal', bpm: { start: 60, target: 40, step: -4 }, lays: [1],
-      purpose: `Every note of ${p.name}, held long against the tanpura, up and down, with its resting notes (${p.nyas}) held longest.`,
-      why: 'Before any phrase, each note has to sit still against the drone. Your notes start every badhat this way: Sa alone, then one note at a time.',
-      how: ['Tanpura on. Akaar; arrive, settle, then hold at one volume.', 'Then the guide off.'],
-      listen: 'Each note still, with no wobble, and the gap between the wide steps exact.', mistakes: `In ${p.name}: ${p.pitfalls}.`,
-      harder: 'Slower, so each note is longer; then with the guide off.', notes: () => p.swar });
   }
   for (const [raga, cn] of Object.entries(CLASS_NOTES)) {
     const path = PATHS.find(p => p.id === cn.path);
