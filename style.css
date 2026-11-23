@@ -981,3 +981,8 @@ button:focus:not(:focus-visible) { outline: none; }
   #practice .detail-scroll { gap: 9px; }
   #practice .pr-today { height: 38px; }
 }
+@media (orientation: landscape) and (max-width: 700px) {
+  #practice .pr-actions .btn { padding: 0 14px; }
+  #practice .pr-actions .btn.primary { min-width: 84px; }
+  #practice .pr-actions .lib-lay button { min-width: 36px; padding: 0 8px; }
+}

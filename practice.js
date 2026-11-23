@@ -116,6 +116,10 @@ const G = {
   draw(b, play, mic) {
     const cv = this.canvas;
     if (!cv || !b) return;
+    // laid out while the sheet was hidden (or resized since): size it to what is on screen now
+    const r = cv.getBoundingClientRect();
+    if (r.width < 2) return;
+    if (Math.abs(r.width - this.w) > 0.5 || Math.abs(r.height - this.h) > 0.5) this.size();
     const c2 = cv.getContext('2d');
     c2.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c2.clearRect(0, 0, this.w, this.h);
