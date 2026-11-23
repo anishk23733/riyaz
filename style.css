@@ -975,7 +975,6 @@ button:focus:not(:focus-visible) { outline: none; }
   #practice .pr-bar { display: none; }
   #practice .detail-scroll { padding: 10px 12px 8px; }
   #practice .detail-actions { padding: 8px 12px 10px; gap: 8px; }
-  #practice .pr-scale { display: none; }
 }
 @media (orientation: landscape) and (max-height: 420px) {
   #practice .detail-title h2 { font-size: 20px; }
