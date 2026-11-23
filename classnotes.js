@@ -1,5 +1,5 @@
 'use strict';
-// Lessons from Anish's class notes (he is the teacher who wrote them), plus exercises composed
+// Lessons from your own class notes, plus exercises composed
 // for this app in the same method. Loaded after ragapaths.js, before practice.js.
 //
 // His notation, kept verbatim in the data below, and how it is read here:
@@ -226,7 +226,7 @@ CLASS_NOTES['Yaman'] = {
     ],
     fix: { 'mDnS”': 'mDNS”' },
     unclear: [
-      'Antara taan 3, matra 7: "mDnS”" has a komal n, which Yaman doesn’t use. Played as written; probably N.',
+      'Antara taan 3, matra 7: "mDnS”" has a komal n, which Yaman doesn’t use. Played as N.',
       'Antara taan 5, matra 7 of its second line: "R”-R”S" ends on madhya Sa, a jump of more than an octave. Played as written; probably S”.',
       'Antara taan 6: "G”G”R”S" (twice) ends on madhya Sa. Played as written; probably S”.',
       'Antara taan 6, last line: "S”ND”S”S”" has a taar Dha where the cells around it have "S”NDS”S”S”". Played as written; probably D.',
@@ -262,7 +262,7 @@ CLASS_NOTES['Bhinna Shadja'] = {
     { from: 9, to: 14, name: 'The taar saptak', why: "From taar Sa the steps go up to Ġ and Ṁ and hold them (11: D N Ṡ Ġ Ṁ, held), circling Ṁ Ġ Ṡ the way the madhya steps circled M G S: the same shapes an octave up." },
     { from: 15, to: 20, name: 'Coming down', why: "Now the steps fall. 18 drops down the scale in threes (Ṁ Ṁ Ṁ, Ġ Ġ Ġ, Ṡ Ṡ Ṡ, N N N...) and 20 is the descent in falling three-note cells, Ṡ N D, N D M, D M G, M G S: the second line of the palta, sung slowly as an aalap." },
   ],
-  // the performance format: aalap steps 16 to 28, in three parts; the middle one is Anish's
+  // the performance format: aalap steps 16 to 28, in three parts; the middle one is yours
   format: [
     { part: 'Part 1', steps: [
       [16, 'S- - -N’S - - N’D’N’- - - , D’... D’M’D’- - , N’ …. N’D’N’---D’... S(D’S)---'],
