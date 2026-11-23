@@ -989,3 +989,27 @@ button:focus:not(:focus-visible) { outline: none; }
 .pr-group { flex: none; padding: 14px 14px 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--text); border-top: 1px solid rgba(255,255,255,.08); margin-top: 6px; }
 .pr-about { margin: 10px 0; }
 .pr-about p { margin: 6px 0; font-size: 14px; line-height: 1.45; }
+
+/* full aalaps: the score */
+.pr-sticky { position: sticky; top: -14px; z-index: 2; display: flex; flex-direction: column; gap: 6px; margin: 0 -2px; padding: 4px 2px 6px; background: var(--bg, #111113); }
+.as-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 30px; }
+.as-bar .hide { display: none; }
+.as-score { display: flex; flex-direction: column; gap: 14px; }
+.as-stage { display: flex; flex-direction: column; gap: 4px; }
+.as-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 6px 0 2px; background: none; border: none; color: var(--text); text-align: left; cursor: pointer; border-bottom: 1px solid #26262b; }
+.as-title { font-size: 15px; font-weight: 700; }
+.as-why { margin: 2px 0 4px; font-size: 14px; line-height: 1.4; color: #bdbab2; max-width: 66ch; }
+.as-step { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 10px; border: 1px solid transparent; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.as-step.in { background: var(--surface); border-color: #2e2e34; }
+.as-step.pending { border-color: var(--accent); border-style: dashed; }
+.as-step.cur { border-color: var(--accent); background: var(--sa-bg); }
+.as-n { flex: none; min-width: 26px; padding-top: 6px; font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.as-step.cur .as-n { color: var(--accent); }
+.as-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lib-notation.as-notes { gap: 2px 3px; padding: 0; align-items: baseline; }
+.lib-notation.as-notes .bt { min-width: 0; }
+.lib-notation.as-notes .sl { font-size: 18px; line-height: 1.35; }
+.as-orig { font-size: 12px; color: #6e6c66; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+@media (orientation: landscape) and (max-height: 420px) {
+  .pr-sticky { position: static; }
+}

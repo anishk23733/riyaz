@@ -1,7 +1,8 @@
 'use strict';
 /* global $, S, esc, clamp, save, audio, unlock, ctx, saMidi, mtof, OFF, swaraText, ALL_RAGAS, currentRaga,
    Tabla, Tanpura, TAALS, vibhagOf, renderSettings, renderTablaSettings, updateTablaUI, keepInStep, openSheet,
-   Lib, parseNotes, useRaga, Pitch, Sing, EXERCISES, TRACKS, LEVEL_NAMES, SOURCES, exerciseNotes, ragaScale, BILAWAL, PATHS, PATH_STAGES */
+   Lib, parseNotes, useRaga, Pitch, Sing, EXERCISES, TRACKS, LEVEL_NAMES, SOURCES, exerciseNotes, ragaScale, BILAWAL, PATHS, PATH_STAGES,
+   AALAPS, aalapSteps, aalapScore */
 
 // =====================================================================
 // Practice: a graded riyaz course (exercises.js). Each exercise is drawn as a note graph, swaras
@@ -154,7 +155,29 @@ const G = {
     const first = Math.floor(this.x0), last = Math.min(g.B, Math.ceil(this.x0 + g.view) + 1);
     c2.textAlign = 'center';
     c2.textBaseline = 'alphabetic';
-    for (let i = first; i <= last; i++) {
+    // an aalap has no taal: a faint line on each matra, and each step's number where it starts
+    if (b.marks) {
+      for (let i = first; i <= last; i++) {
+        const x = this.x(g, i);
+        if (x < g.gut - 1) continue;
+        c2.strokeStyle = 'rgba(236,234,228,.05)';
+        c2.lineWidth = 1;
+        c2.beginPath(); c2.moveTo(x, g.top - 2); c2.lineTo(x, this.h - g.bot); c2.stroke();
+      }
+      const cur = play != null ? aalapMarkAt(b, play) : -1;
+      b.marks.forEach((mk, k) => {
+        const x = this.x(g, mk.b);
+        if (x < g.gut - 1 || x > this.w + 2) return;
+        c2.strokeStyle = k === cur ? 'rgba(242,163,58,.6)' : 'rgba(236,234,228,.26)';
+        c2.lineWidth = 1.5;
+        c2.beginPath(); c2.moveTo(x, g.top - 2); c2.lineTo(x, this.h - g.bot); c2.stroke();
+        c2.font = 'bold 11px -apple-system, system-ui, sans-serif';
+        c2.fillStyle = k === cur ? accent : '#a9a69e';
+        c2.textAlign = 'left';
+        c2.fillText(String(mk.n), x + 3, 12);
+      });
+    }
+    for (let i = first; i <= last && !b.marks; i++) {
       const x = this.x(g, i);
       if (x < g.gut - 1) continue;
       const m = (((i + off) % M) + M) % M, vb = vibhagOf(tl, m);
@@ -418,7 +441,7 @@ function prMessage(text) { const el = $('prMsg'); if (el) { el.textContent = tex
 
 function openPractice() {
   if (!prSel) prSel = S.prSel || 'today';
-  if (prSel !== 'today' && !EXERCISES.find(e => e.id === prSel)) prSel = 'today';
+  if (prSel !== 'today' && !EXERCISES.find(e => e.id === prSel) && !aalapOf(prSel)) prSel = 'today';
   const ex = EXERCISES.find(e => e.id === prSel);
   if (ex) prOpenTracks.add(ex.track);
   renderPrHead();
@@ -478,6 +501,13 @@ function renderPrSide() {
     if (!open) continue;
     html += prItems(items, e => LEVEL_NAMES[e.level]);
   }
+  if (typeof AALAPS !== 'undefined' && AALAPS.length) {
+    const open = prOpenTracks.has('aalaps');
+    html += `<button class="tree-thaat pr-track${open ? ' open' : ''}" data-track="aalaps">
+      <span class="caret">${open ? '▾' : '▸'}</span><span>Full aalaps</span><span class="right">${AALAPS.length}</span></button>`;
+    if (open) html += AALAPS.map(a => `<button class="tree-raga lib-item pr-item${prSel === 'aalap:' + a.id ? ' sel' : ''}" data-aalap="${esc(a.id)}">
+      <span class="nm">${esc(a.name)}</span><span class="right muted small">${a.src === 'notes' ? 'your notes' : 'composed'}</span></button>`).join('');
+  }
   if (typeof PATHS !== 'undefined') {
     html += `<div class="pr-group">Raga paths</div>`;
     for (const t of PATHS) {
@@ -498,6 +528,7 @@ function renderPrSide() {
     b.onclick = () => { const id = b.dataset.track; prOpenTracks.has(id) ? prOpenTracks.delete(id) : prOpenTracks.add(id); renderPrSide(); };
   });
   side.querySelectorAll('[data-ex]').forEach(b => { b.onclick = () => { prFromPlan = null; selectPr(b.dataset.ex); }; });
+  side.querySelectorAll('[data-aalap]').forEach(b => { b.onclick = () => { prFromPlan = null; selectPr('aalap:' + b.dataset.aalap); }; });
 }
 
 // the rows of one track or path, with a heading wherever `head` changes
@@ -538,6 +569,8 @@ function selectPr(id) {
     // start at this exercise's working tempo
     if (!Lib.playing) setPrTempo(Prog.bpm(ex));
   }
+  const al = aalapOf(id);
+  if (al) { prOpenTracks.add('aalaps'); if (!Lib.playing) setPrTempo(Prog.ex('aalap-' + al.id).bpm || AALAP_BPM); }
   renderPrSide();
   renderPrDetail();
 }
@@ -602,7 +635,7 @@ function renderToday() {
         <div class="seg small-seg" role="group" aria-label="Level">${[1, 2, 3, 4].map(l => `<button data-lv="${l}" class="${L === l ? 'sel' : ''}">${esc(LEVEL_NAMES[l])}</button>`).join('')}</div>
         <div class="seg small-seg" role="group" aria-label="Minutes">${[15, 30, 45].map(m => `<button data-min="${m}" class="${(S.prMinutes || 30) === m ? 'sel' : ''}">${m} min</button>`).join('')}</div>
       </div>
-      <p class="lib-why">In the usual order of a riyaz: settle on Sa, alankars from slow to fast, an ornament, then the raga (the next lessons in its own path: ${esc(todayPath() ? todayPath().name : 'choose a raga')}), speed or laya, and a little ear work. Each one is the next exercise you haven't mastered at the level you pick. The raga follows the one chosen on the main screen when it has a path.</p>
+      <p class="lib-why">In the usual order of a riyaz: settle on Sa, then the raga (the next lessons in its own path: ${esc(todayPath() ? todayPath().name : 'choose a raga')}), then laya, and a little ear work. Each one is the next exercise you haven't mastered at the level you pick. The raga follows the one chosen on the main screen when it has a path.</p>
       <div class="pr-plan">${plan.map((p, i) => {
         const done = Prog.doneToday(p.ex.id), lay = exLay(p.ex);
         return `<button class="pr-row${done ? ' done' : ''}" data-plan="${i}">
@@ -627,6 +660,7 @@ function cite(k) {
 
 function renderPrDetail() {
   if (prSel === 'today') { prBuilt = null; renderToday(); return; }
+  if (aalapOf(prSel)) { renderAalap(aalapOf(prSel)); return; }
   const ex = EXERCISES.find(e => e.id === prSel);
   if (!ex) return;
   if (needsRaga(ex)) {
@@ -743,6 +777,7 @@ function flatNotation(b) {
 function renderPrActions() {
   const el = $('prActions');
   if (!el || !prBuilt) return;
+  if (prBuilt.score) { renderAalapActions(); return; }
   const ex = prBuilt.ex;
   const playing = Lib.playing && prEntry && Lib.entry === prEntry;
   const lays = exLays(ex), lay = exLay(ex);
@@ -874,6 +909,7 @@ function prFrame() {
     if (beat >= -0.0001 && beat <= b.parsed.beats.length) play = beat;
     Mic.sample(b);
   }
+  if (b.score) aalapFollow(b, play);
   G.draw(b, play, Mic.pts.length ? Mic.pts : Mic.lastPts);
 }
 
@@ -905,7 +941,7 @@ $('prTabla').onclick = () => {
   save();
   if (S.prTabla === false && Lib.startedTabla) { Tabla.stop(); Lib.startedTabla = false; }
   renderPrHead();
-  if (Lib.playing && Lib.entry === prEntry) playPr();
+  if (Lib.playing && Lib.entry === prEntry) (prBuilt && prBuilt.score ? playAalap() : playPr());
 };
 $('prTanpura').onclick = () => {
   if (prBuilt && prBuilt.ex.raga && prBuilt.ex.raga !== 'current') useRaga(prBuilt.ex.raga);
@@ -918,7 +954,228 @@ document.querySelectorAll('[data-prbpm]').forEach(b => {
     // a tempo you choose by hand becomes the exercise's working tempo
     if (prBuilt) { Prog.ex(prBuilt.ex.id).bpm = S.bpm; Prog.save(); }
     const was = Lib.playing && Lib.entry === prEntry;
+    if (prBuilt && prBuilt.score) { aalapLength(); if (was) Lib.restart(); return; }
     renderPrDetail();
     if (was) Lib.restart();
   };
 });
+
+// =====================================================================
+// Full aalaps (aalaps.js): the whole badhat as a score. Play it straight through, or tap a step or
+// a stage heading to take just that part; Range takes any stretch (first tap, last tap). Loop
+// repeats the part, the tempo buttons slow it down, Guide off leaves it all for you to sing.
+// =====================================================================
+const AALAP_BPM = 60;
+const aalapOf = sel => (typeof AALAPS !== 'undefined' && typeof sel === 'string' && sel.startsWith('aalap:') ? AALAPS.find(a => a.id === sel.slice(6)) : null);
+const AalapSel = { id: null, from: 0, to: 0, range: false, pending: null };
+
+function aalapStepCount(a) { return aalapSteps(a).length; }
+
+function buildAalap(a) {
+  const raga = ALL_RAGAS.get(a.raga);
+  const sc = aalapScore(a, AalapSel.from, AalapSel.to);
+  const parsed = parseNotes(sc.notes);
+  if (S.prGuide === 'off') for (const e of parsed.events) e.silent = true;
+  const scale = ragaScale(raga);
+  const ex = { id: 'aalap-' + a.id, name: a.name, raga: a.raga, taal: 'Ektaal', lays: [1], bpm: { start: AALAP_BPM, target: AALAP_BPM, step: 0 } };
+  return { ex, c: { scale, n: scale.length, raga }, lay: 1, taal: taalOf('Ektaal'), notes: sc.notes, parsed, raga, score: true, marks: sc.marks, a };
+}
+
+// which step mark the beat is in
+function aalapMarkAt(b, beat) {
+  let k = -1;
+  for (let i = 0; i < b.marks.length; i++) if (b.marks[i].b <= beat + 1e-6) k = i; else break;
+  return k;
+}
+
+function aalapWhat(a) {
+  const steps = aalapSteps(a), n = steps.length, { from, to } = AalapSel;
+  if (from === 0 && to === n - 1) return `The whole aalap, steps ${steps[0].n} to ${steps[n - 1].n}`;
+  const st = a.stages.findIndex((s, si) => steps.findIndex(x => x.stage === si) === from && steps.length - 1 - [...steps].reverse().findIndex(x => x.stage === si) === to);
+  if (st >= 0) return `${a.stages[st].name}: steps ${steps[from].n} to ${steps[to].n}`;
+  return from === to ? `Step ${steps[from].n}` : `Steps ${steps[from].n} to ${steps[to].n}`;
+}
+
+function aalapLength() {
+  const b = prBuilt, el = $('prResult');
+  if (!b || !b.score || !el) return;
+  const secs = Math.round(b.parsed.beats.length * 60 / S.bpm);
+  el.className = 'pr-result muted small';
+  el.textContent = `${aalapWhat(b.a)} · ${b.parsed.beats.length} matras, about ${secs >= 90 ? Math.round(secs / 60) + ' min' : secs + ' s'} at ${S.bpm} BPM`;
+}
+
+// one step's notes, as written in the app's sargam
+function aalapStepHtml(notes) {
+  return parseNotes(notes).beats.map(bt => `<span class="bt${bt.slots.length > 1 ? ' many' : ''}">${bt.slots.map(s => {
+    if (s.hold) return '<span class="hd">–</span>';
+    if (s.rest) return '<span class="rs">,</span>';
+    const n = s.n, l = Object.keys(OFF).find(k => OFF[k] === n.off);
+    const kan = n.kan ? `<sup class="kan">${swaraText(Object.keys(OFF).find(k => OFF[k] === n.kan.off), n.kan.oct)}</sup>` : '';
+    return `${n.glide ? '<span class="gl">⌒</span>' : ''}${kan}<span class="tok">${swaraText(l, n.oct)}${n.andolan ? '<sup class="kan">~</sup>' : ''}</span>`;
+  }).join('')}</span>`).join('');
+}
+
+function renderAalap(a) {
+  const steps = aalapSteps(a), N = steps.length;
+  if (AalapSel.id !== a.id) Object.assign(AalapSel, { id: a.id, from: 0, to: N - 1, pending: null });
+  AalapSel.from = clamp(AalapSel.from, 0, N - 1); AalapSel.to = clamp(AalapSel.to, AalapSel.from, N - 1);
+  prBuilt = buildAalap(a);
+  const path = typeof PATHS !== 'undefined' ? PATHS.find(p => p.raga === a.raga) : null;
+  const src = a.src === 'notes'
+    ? `<div class="legend">From your class notes (${esc(a.file || a.raga)}): your steps, in your order. Your page gives the notes and their order; the timing is the app's (a note a matra, each dash or dot a matra held, a comma a breath). Each step's line as you wrote it is under it.</div>`
+    : '<div class="check-note">Composed for this app: a complete badhat, Bhimsen-inspired in the Kirana manner (one new note at a time, each held as a nyas, taar Sa held back until late). Not from your notes; worth checking against how you teach it.</div>';
+  let k = 0;
+  const body = a.stages.map((st, si) => {
+    const first = k;
+    const rows = st.steps.map(s => {
+      const i = k++;
+      return `<button class="as-step" data-step="${i}">
+        <span class="as-n">${s.n}</span>
+        <span class="as-body"><span class="lib-notation as-notes">${aalapStepHtml(s.notes)}</span>${s.orig ? `<span class="as-orig">${esc(s.orig)}</span>` : ''}</span></button>`;
+    }).join('');
+    return `<div class="as-stage"><button class="as-head" data-stage="${si}" data-from="${first}" data-to="${k - 1}">
+        <span class="as-title">${esc(st.name)}</span><span class="muted small">steps ${steps[first].n} to ${steps[k - 1].n}</span></button>
+        ${st.why ? `<p class="as-why">${esc(st.why)}</p>` : ''}${rows}</div>`;
+  }).join('');
+
+  $('prDetail').innerHTML = `
+    <div class="detail-scroll" id="prScroll">
+      <div class="detail-title"><h2>${esc(a.name)}: full aalap</h2><span class="muted small">${esc(a.raga)} · ${N} steps in ${a.stages.length} stages · ${a.src === 'notes' ? 'your class notes' : 'composed'}</span></div>
+      <div class="pr-sticky">
+        <div class="pr-graph-wrap"><canvas id="prGraph" aria-label="The notes of the selected part on a graph: swaras up the side, matras along the bottom, step numbers on top"></canvas></div>
+        <div class="as-bar">
+          <span id="prResult" class="pr-result muted small"></span>
+          <span class="grow"></span>
+          <button class="link-btn${AalapSel.from === 0 && AalapSel.to === N - 1 ? ' hide' : ''}" id="asAll">Whole aalap</button>
+          <button class="btn small toggle${AalapSel.range ? ' on' : ''}" id="asRange" aria-pressed="${AalapSel.range}">Range</button>
+        </div>
+      </div>
+      <div id="prMsg" class="check-note pr-msg" hidden></div>
+      <p class="lib-why">Tap a step to work on just that step, or a stage's heading for the whole stage. With Range on, tap the first step and then the last. Loop repeats it; −5 slows it down; Guide off leaves every note for you to sing, and Sing draws your voice over the graph.</p>
+      <div class="as-score">${body}</div>
+      ${src}
+      ${path ? prPathAbout(path) : ''}
+    </div>
+    <div class="detail-actions lib-actions pr-actions" id="prActions"></div>`;
+
+  G.canvas = $('prGraph');
+  G.x0 = 0;
+  G.size();
+  hookGraphDrag();
+  renderAalapActions();
+  aalapMarkSel();
+  aalapLength();
+  const d = $('prDetail');
+  d.querySelectorAll('[data-step]').forEach(el => { el.onclick = () => aalapPick(Number(el.dataset.step)); });
+  d.querySelectorAll('[data-stage]').forEach(el => { el.onclick = () => aalapSelect(Number(el.dataset.from), Number(el.dataset.to)); });
+  $('asAll').onclick = () => aalapSelect(0, N - 1);
+  $('asRange').onclick = () => { AalapSel.range = !AalapSel.range; AalapSel.pending = null; $('asRange').classList.toggle('on', AalapSel.range); $('asRange').setAttribute('aria-pressed', String(AalapSel.range)); aalapMarkSel(); };
+  G.draw(prBuilt, null, Mic.lastPts);
+  G.dirty = true;
+}
+
+// a tap on a step: that step alone, or (Range) the first and then the last of a stretch
+function aalapPick(i) {
+  if (AalapSel.range) {
+    if (AalapSel.pending == null) { AalapSel.pending = i; aalapMarkSel(); prMessage('Now tap the last step of the stretch.'); return; }
+    const a = Math.min(AalapSel.pending, i), z = Math.max(AalapSel.pending, i);
+    AalapSel.pending = null;
+    prMessage('');
+    aalapSelect(a, z);
+    return;
+  }
+  aalapSelect(i, i);
+}
+
+function aalapSelect(from, to) {
+  const a = aalapOf(prSel);
+  if (!a) return;
+  const was = Lib.playing && prEntry && Lib.entry === prEntry;
+  AalapSel.from = from; AalapSel.to = to;
+  Mic.pts = []; Mic.lastPts = [];
+  prBuilt = buildAalap(a);
+  G.x0 = 0;
+  aalapMarkSel();
+  aalapLength();
+  const all = $('asAll');
+  if (all) all.classList.toggle('hide', from === 0 && to === aalapStepCount(a) - 1);
+  G.dirty = true;
+  if (was) playAalap();
+}
+
+// the selected steps, outlined in the score
+function aalapMarkSel() {
+  const d = $('prDetail');
+  d.querySelectorAll('[data-step]').forEach(el => {
+    const i = Number(el.dataset.step);
+    el.classList.toggle('in', i >= AalapSel.from && i <= AalapSel.to);
+    el.classList.toggle('pending', AalapSel.pending === i);
+  });
+}
+
+// while it plays: the step being sung, lit in the score and kept in view
+let aalapCur = -1;
+function aalapFollow(b, play) {
+  const k = play == null ? -1 : aalapMarkAt(b, play);
+  const i = k < 0 ? -1 : b.marks[k].i;
+  if (i === aalapCur) return;
+  aalapCur = i;
+  const d = $('prDetail');
+  d.querySelectorAll('.as-step.cur').forEach(el => el.classList.remove('cur'));
+  if (i < 0) return;
+  const el = d.querySelector(`[data-step="${i}"]`);
+  if (!el) return;
+  el.classList.add('cur');
+  const sc = $('prScroll'), st = d.querySelector('.pr-sticky');
+  if (!sc) return;
+  const top = el.offsetTop - sc.offsetTop, h = st ? st.offsetHeight : 0;
+  if (top < sc.scrollTop + h + 8 || top + el.offsetHeight > sc.scrollTop + sc.clientHeight - 8) { const y = Math.max(0, top - h - 16); if (sc.scrollTo) sc.scrollTo({ top: y, behavior: 'smooth' }); else sc.scrollTop = y; }
+}
+
+function renderAalapActions() {
+  const el = $('prActions');
+  if (!el || !prBuilt || !prBuilt.score) return;
+  const playing = Lib.playing && prEntry && Lib.entry === prEntry;
+  el.innerHTML = `
+    <button class="btn primary" id="prPlay">${playing ? '■ Stop' : '▶ Play'}</button>
+    <button class="btn toggle${S.prAalapLoop ? ' on' : ''}" id="asLoop" aria-pressed="${!!S.prAalapLoop}">Loop</button>
+    <button class="btn toggle${S.prGuide === 'off' ? '' : ' on'}" id="prGuide" aria-pressed="${S.prGuide !== 'off'}">Guide</button>
+    <button class="btn toggle${Mic.on ? ' on' : ''}" id="prSing" aria-pressed="${Mic.on}">Sing</button>`;
+  $('prPlay').onclick = () => (playing ? Lib.stop() : playAalap());
+  $('asLoop').onclick = () => {
+    S.prAalapLoop = !S.prAalapLoop; save();
+    renderAalapActions();
+    if (Lib.playing && Lib.entry === prEntry) playAalap();
+  };
+  $('prGuide').onclick = () => {
+    S.prGuide = S.prGuide === 'off' ? 'play' : 'off'; save();
+    const was = Lib.playing && Lib.entry === prEntry;
+    aalapSelect(AalapSel.from, AalapSel.to);
+    renderAalapActions();
+    if (was) playAalap();
+  };
+  $('prSing').onclick = () => Mic.toggle();
+}
+
+function playAalap() {
+  const b = prBuilt;
+  if (!b || !b.score) return;
+  if (S.raga !== b.a.raga) useRaga(b.a.raga);
+  Mic.pts = []; Mic.result = null;
+  aalapCur = -1;
+  // an aalap has no taal, so no tabla
+  prEntry = { raga: b.a.raga, name: b.a.name, notes: b.notes, parsed: b.parsed };
+  Lib.play(prEntry, {
+    lay: 1, tabla: false, loop: !!S.prAalapLoop,
+    onToken: () => {},
+    onChange: () => {
+      renderAalapActions();
+      if (Lib.playing) return;
+      // played to the end without a loop: count it and score the singing
+      if (Lib.entry === prEntry && Lib.pass && ctx && ctx.currentTime >= Lib.pass.end) passDone();
+      aalapFollow(b, null); G.dirty = true;
+    },
+    onPass: pass => { if (pass.n > 0) passDone(); },
+  });
+  renderAalapActions();
+}
